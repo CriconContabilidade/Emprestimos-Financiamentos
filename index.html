@@ -179,6 +179,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
       <div class="field"><label>D — Juros sobre Empréstimos (despesa)</label><input id="L_contaJurosDespesa"></div>
       <div class="field"><label>C — Banco (pagamento)</label><input id="L_contaBanco"></div>
     </div>
+    <label class="radio-opt" style="margin-bottom:14px;"><input type="checkbox" id="L_semPagamento"> Não gerar lançamento de pagamento (será lançado ao importar o extrato do cliente) — mantém só contratação, apropriação de juros e transferências CP/LP</label>
 
     <div class="btn-row"><button class="btn" onclick="calcularLinearUI()">Calcular</button></div>
     <div id="L_status" class="status-line hidden"></div>
@@ -231,6 +232,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
       <div class="field"><label>D — Correção Monetária Passiva (despesa)</label><input id="I_contaCorrecao"></div>
       <div class="field"><label>C — Banco (pagamento)</label><input id="I_contaBanco"></div>
     </div>
+    <label class="radio-opt" style="margin-bottom:14px;"><input type="checkbox" id="I_semPagamento"> Não gerar lançamento de pagamento (será lançado ao importar o extrato do cliente) — a correção do mês fica capitalizada no Financiamento a Pagar até lá</label>
 
     <div class="btn-row"><button class="btn" onclick="calcularIndiceUI()">Calcular</button></div>
     <div id="I_status" class="status-line hidden"></div>
@@ -291,6 +293,7 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
       <div class="field"><label>D — Juros sobre Empréstimos (despesa)</label><input id="P_contaJurosDespesa"></div>
       <div class="field"><label>C — Banco (pagamento)</label><input id="P_contaBanco"></div>
     </div>
+    <label class="radio-opt" style="margin-bottom:14px;"><input type="checkbox" id="P_semPagamento"> Não gerar lançamento de pagamento (será lançado ao importar o extrato do cliente) — os juros/correção do mês ficam capitalizados no Financiamento a Pagar até lá</label>
 
     <div class="btn-row"><button class="btn" onclick="calcularPriceUI()">Calcular</button></div>
     <div id="P_status" class="status-line hidden"></div>
@@ -548,12 +551,16 @@ function calcularLinearUI(){
     lanc.push({data:dataContratacao, debito:contas.jurosCP, credito:"", valor: jurosCPInicial, complemento:hist(`(-) Juros a apropriar CP - ${desc} (D)`)});
     lanc.push({data:dataContratacao, debito:contas.jurosLP, credito:"", valor: jurosLPInicial, complemento:hist(`(-) Juros a apropriar LP - ${desc} (D)`)});
 
-    if(entrada>0){
+    const semPagamento = document.getElementById("L_semPagamento").checked;
+
+    if(entrada>0 && !semPagamento){
       lanc.push({data:dataContratacao, debito:contas.finCP, credito:contas.banco, valor: entrada, complemento:hist(`Pagamento entrada - ${desc}`), iniciaLote:true});
     }
 
     parcelas.forEach(p=>{
-      lanc.push({data:p.vencimento, debito:contas.finCP, credito:contas.banco, valor:p.valorParcela, complemento:hist(`Pagamento parcela ${p.n}/${nParcelas} - ${desc}`), iniciaLote:true});
+      if(!semPagamento){
+        lanc.push({data:p.vencimento, debito:contas.finCP, credito:contas.banco, valor:p.valorParcela, complemento:hist(`Pagamento parcela ${p.n}/${nParcelas} - ${desc}`), iniciaLote:true});
+      }
       lanc.push({data:p.apropriacao, debito:contas.jurosDespesa, credito:contas.jurosCP, valor:p.juros, complemento:hist(`Apropriação juros parcela ${p.n}/${nParcelas} - ${desc}`), iniciaLote:true});
     });
 
@@ -654,8 +661,9 @@ function calcularIndiceUI(){
       correcao: document.getElementById("I_contaCorrecao").value.trim(),
       banco: document.getElementById("I_contaBanco").value.trim()
     };
+    const semPagamento = document.getElementById("I_semPagamento").checked;
 
-    window._indiceCalc = {desc, codEmpresa, dataContrato, entrada, valorParcela, nParcelas, dataFim, indiceNome, indiceBase, parcelas, contas, finCPInicial, finLPInicial, totalNominal, dataCorte};
+    window._indiceCalc = {desc, codEmpresa, dataContrato, entrada, valorParcela, nParcelas, dataFim, indiceNome, indiceBase, parcelas, contas, finCPInicial, finLPInicial, totalNominal, dataCorte, semPagamento};
 
     document.getElementById("I_summary").innerHTML = `
       <div class="item"><div class="k">Valor nominal do contrato</div><div class="v">R$ ${fmtBRL(totalNominal)}</div></div>
@@ -777,28 +785,43 @@ function recalcularIndice(){
   lanc.push({data:c.dataContrato, debito:c.contas.ativo, credito:"", valor: c.totalNominal, complemento:hist(`Contratação de parcelamento - ${c.desc} (D)`), iniciaLote:true});
   lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finCP, valor: c.finCPInicial, complemento:hist(`Financiamento a pagar CP - ${c.desc} (C)`)});
   lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finLP, valor: c.finLPInicial, complemento:hist(`Financiamento a pagar LP - ${c.desc} (C)`)});
-  if(c.entrada>0){
+  if(c.entrada>0 && !c.semPagamento){
     lanc.push({data:c.dataContrato, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:hist(`Pagamento entrada - ${c.desc}`), iniciaLote:true});
   }
 
-  // Cada parcela é um lote de 2 ou 3 linhas que precisa fechar Débito=Crédito sozinho:
-  // D Financiamento a Pagar pelo valor NOMINAL da parcela, D/C Correção Monetária pela
-  // diferença (se o índice subiu, debita a diferença; se caiu, credita), C Banco pelo
-  // valor efetivamente pago (já corrigido).
+  // Cada parcela é um lote que precisa fechar Débito=Crédito sozinho.
+  // Comportamento normal: D Financiamento a Pagar pelo valor NOMINAL da parcela, D/C
+  // Correção Monetária pela diferença, C Banco pelo valor efetivamente pago (corrigido).
+  // Com "sem pagamento" marcado: a correção só capitaliza no Financiamento a Pagar (D/C
+  // Correção x C/D Financiamento a Pagar) — a baixa contra o Banco fica pra quando o
+  // extrato do cliente for importado em outra ferramenta.
   c.parcelas.forEach(p=>{
     const correcao = p.valorNominal*(p.indice/c.indiceBase - 1);
     const valorCorrigido = p.valorNominal + correcao;
     document.getElementById(`I_corr_${p.n}`).textContent = fmtBRL(correcao);
     document.getElementById(`I_valCorr_${p.n}`).textContent = fmtBRL(valorCorrigido);
-    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:"", valor:p.valorNominal, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`), iniciaLote:true});
-    if(Math.abs(correcao) > 0.0001){
-      if(correcao>0){
-        lanc.push({data:p.vencimento, debito:c.contas.correcao, credito:"", valor:correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`)});
-      } else {
-        lanc.push({data:p.vencimento, debito:"", credito:c.contas.correcao, valor:-correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
+
+    if(c.semPagamento){
+      if(Math.abs(correcao) > 0.0001){
+        if(correcao>0){
+          lanc.push({data:p.vencimento, debito:c.contas.correcao, credito:"", valor:correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`), iniciaLote:true});
+          lanc.push({data:p.vencimento, debito:"", credito:c.contas.finCP, valor:correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
+        } else {
+          lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:"", valor:-correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`), iniciaLote:true});
+          lanc.push({data:p.vencimento, debito:"", credito:c.contas.correcao, valor:-correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
+        }
       }
+    } else {
+      lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:"", valor:p.valorNominal, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`), iniciaLote:true});
+      if(Math.abs(correcao) > 0.0001){
+        if(correcao>0){
+          lanc.push({data:p.vencimento, debito:c.contas.correcao, credito:"", valor:correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`)});
+        } else {
+          lanc.push({data:p.vencimento, debito:"", credito:c.contas.correcao, valor:-correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
+        }
+      }
+      lanc.push({data:p.vencimento, debito:"", credito:c.contas.banco, valor:valorCorrigido, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
     }
-    lanc.push({data:p.vencimento, debito:"", credito:c.contas.banco, valor:valorCorrigido, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
   });
 
   // transferências anuais LP -> CP (valores nominais)
@@ -894,7 +917,9 @@ function calcularPriceUI(){
       banco: document.getElementById("P_contaBanco").value.trim()
     };
 
-    window._priceCalc = {desc, codEmpresa, dataContratacao, valorFinanciado, taxas, entrada, taxaFixaMensal, nParcelas, dataPrimeiraParcela, dataCorte, baseFinanciada, parcelas, contas};
+    const semPagamento = document.getElementById("P_semPagamento").checked;
+
+    window._priceCalc = {desc, codEmpresa, dataContratacao, valorFinanciado, taxas, entrada, taxaFixaMensal, nParcelas, dataPrimeiraParcela, dataCorte, baseFinanciada, parcelas, contas, semPagamento};
 
     computePriceSchedule(window._priceCalc);
     renderPriceScheduleTable();
@@ -994,13 +1019,15 @@ function recalcularPrice(){
   lanc.push({data:c.dataContratacao, debito:"", credito:c.contas.finCP, valor:finCPInicial, complemento:hist(`Financiamento a pagar CP - ${c.desc} (C)`)});
   lanc.push({data:c.dataContratacao, debito:"", credito:c.contas.finLP, valor:finLPInicial, complemento:hist(`Financiamento a pagar LP - ${c.desc} (C)`)});
 
-  if(c.entrada>0){
+  if(c.entrada>0 && !c.semPagamento){
     lanc.push({data:c.dataContratacao, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:hist(`Pagamento entrada - ${c.desc}`), iniciaLote:true});
   }
 
   c.parcelas.forEach(p=>{
     lanc.push({data:p.apropriacao, debito:c.contas.jurosDespesa, credito:c.contas.finCP, valor:p.juros, complemento:hist(`Apropriação juros (taxa fixa + CDI) parcela ${p.n}/${c.nParcelas} - ${c.desc}`), iniciaLote:true});
-    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:c.contas.banco, valor:p.pmt, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc}`), iniciaLote:true});
+    if(!c.semPagamento){
+      lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:c.contas.banco, valor:p.pmt, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc}`), iniciaLote:true});
+    }
   });
 
   // transferências anuais LP -> CP, pela soma da AMORTIZAÇÃO (principal) das
