@@ -185,8 +185,10 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
     <div class="section-title">Cronograma</div>
     <div class="table-wrap" id="L_scheduleTable"></div>
     <div class="section-title" style="margin-top:18px;">Lançamentos contábeis</div>
+    <div class="help">Todas as células são editáveis — corrija conta, data, valor ou histórico direto na tabela antes de exportar.</div>
     <div class="table-wrap" id="L_lancTable"></div>
     <div class="btn-row">
+      <button class="btn ghost" onclick="addLancRow('L_lancTable')">+ Novo lançamento</button>
       <button class="btn" onclick="downloadLinearTxt()">Baixar TXT de lançamentos</button>
       <button class="btn ghost" onclick="downloadLinearXlsx()">Baixar planilha (.xlsx)</button>
     </div>
@@ -236,8 +238,10 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
     <div class="section-title">Cronograma (edite o índice do mês)</div>
     <div class="table-wrap" id="I_scheduleTable"></div>
     <div class="section-title" style="margin-top:18px;">Lançamentos contábeis</div>
+    <div class="help">Todas as células são editáveis — corrija conta, data, valor ou histórico direto na tabela antes de exportar. <b>Atenção:</b> editar um índice do mês acima recalcula a lista inteira e descarta edições manuais feitas aqui — ajuste os índices primeiro, edite os lançamentos por último.</div>
     <div class="table-wrap" id="I_lancTable"></div>
     <div class="btn-row">
+      <button class="btn ghost" onclick="addLancRow('I_lancTable')">+ Novo lançamento</button>
       <button class="btn" onclick="recalcularIndice()">Recalcular tabela</button>
       <button class="btn" onclick="downloadIndiceTxt()">Baixar TXT de lançamentos</button>
       <button class="btn ghost" onclick="downloadIndiceXlsx()">Baixar planilha (.xlsx)</button>
@@ -264,6 +268,8 @@ function stripAccentsForTxt(v){
   if(typeof v!=="string") return v;
   return v.normalize("NFD").replace(/[̀-ͯ]/g,"");
 }
+// Histórico sempre em caixa alta e sem acentos, tanto na tela quanto no TXT.
+function hist(s){ return stripAccentsForTxt(String(s)).toUpperCase(); }
 function fmtDateBR(d){ if(!d) return ""; return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`; }
 function parseDateInput(str){ if(!str) return null; const [y,m,d] = str.split("-").map(Number); return new Date(y, m-1, d); }
 function addMonths(date, n){
@@ -291,19 +297,74 @@ const LANC_HEADER = ["Data","Débito","Crédito","Valor","Cód. Hist.","Compleme
 function lancRowArray(r, codEmpresa){
   return [r.data?fmtDateBR(r.data):"", r.debito||"", r.credito||"", r.valor, "", r.complemento||"", 1, codEmpresa||"", "", ""];
 }
+function parseBRL(str){
+  if(str==null) return 0;
+  str = String(str).trim();
+  if(str==="") return 0;
+  const neg = /^-/.test(str) || /^\(.*\)$/.test(str);
+  str = str.replace(/[()\-]/g,"").replace(/R\$/g,"").replace(/\s+/g,"").replace(/\./g,"").replace(",",".").trim();
+  const n = parseFloat(str);
+  if(isNaN(n)) return 0;
+  return neg ? -n : n;
+}
+function parseBRDateStr(str){
+  const m = String(str).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(!m) return null;
+  let [,dd,mm,yy] = m;
+  if(yy.length===2) yy = (parseInt(yy)>50?"19":"20")+yy;
+  return new Date(parseInt(yy), parseInt(mm)-1, parseInt(dd));
+}
+window._lancTables = {};
 function renderLancTable(containerId, lancRows, codEmpresa){
+  window._lancTables[containerId] = {rows: lancRows, codEmpresa};
   const el = document.getElementById(containerId);
   if(!lancRows.length){ el.innerHTML = "<div class='help'>Nenhum lançamento gerado.</div>"; return; }
-  let html = `<table class="preview"><thead><tr><th>Data</th><th>Débito</th><th>Crédito</th><th>Valor</th><th>Histórico</th></tr></thead><tbody>`;
-  lancRows.forEach(r=>{
+  let html = `<table class="preview"><thead><tr><th>Data</th><th>Débito</th><th>Crédito</th><th>Valor</th><th>Histórico</th><th></th></tr></thead><tbody>`;
+  lancRows.forEach((r,i)=>{
     const cls = r.yearend ? " class='yearend'" : "";
-    html += `<tr${cls}><td>${fmtDateBR(r.data)}</td><td>${r.debito||""}</td><td>${r.credito||""}</td><td class="num">${fmtBRL(r.valor)}</td><td>${r.complemento||""}</td></tr>`;
+    html += `<tr${cls}>
+      <td class="cell"><input class="cell-input" style="width:88px" value="${r.data?fmtDateBR(r.data):''}" onchange="editLanc('${containerId}',${i},'data',this.value)"></td>
+      <td class="cell"><input class="cell-input" style="width:60px" value="${r.debito||''}" onchange="editLanc('${containerId}',${i},'debito',this.value)"></td>
+      <td class="cell"><input class="cell-input" style="width:60px" value="${r.credito||''}" onchange="editLanc('${containerId}',${i},'credito',this.value)"></td>
+      <td class="cell"><input class="cell-input num" style="width:100px" value="${fmtBRL(r.valor)}" onchange="editLanc('${containerId}',${i},'valor',this.value)"></td>
+      <td class="cell"><input class="cell-input wide" style="width:340px" value="${r.complemento||''}" onchange="editLanc('${containerId}',${i},'complemento',this.value)"></td>
+      <td><button class="btn small ghost" onclick="removeLancRow('${containerId}',${i})">✕</button></td>
+    </tr>`;
   });
   html += `</tbody></table>`;
   el.innerHTML = html;
 }
+function editLanc(containerId, i, field, value){
+  const t = window._lancTables[containerId];
+  if(!t) return;
+  const r = t.rows[i];
+  if(field==="data"){
+    const d = parseBRDateStr(value);
+    if(d) r.data = d;
+  } else if(field==="valor"){
+    r.valor = parseBRL(value);
+  } else if(field==="complemento"){
+    r.complemento = hist(value.trim());
+  } else {
+    r[field] = value.trim();
+  }
+  renderLancTable(containerId, t.rows, t.codEmpresa);
+}
+function removeLancRow(containerId, i){
+  const t = window._lancTables[containerId];
+  if(!t) return;
+  t.rows.splice(i,1);
+  renderLancTable(containerId, t.rows, t.codEmpresa);
+}
+function addLancRow(containerId){
+  const t = window._lancTables[containerId];
+  if(!t) return;
+  const last = t.rows[t.rows.length-1];
+  t.rows.push({data: last?last.data:new Date(), debito:"", credito:"", valor:0, complemento:""});
+  renderLancTable(containerId, t.rows, t.codEmpresa);
+}
 function exportTxt(filename, lancRows, codEmpresa){
-  const lines = lancRows.map(r => lancRowArray(r, codEmpresa).map((v,i)=> i===3 ? fmtValorTxt(v) : stripAccentsForTxt(String(v))).join(";"));
+  const lines = lancRows.map(r => lancRowArray(r, codEmpresa).map((v,i)=> i===3 ? fmtValorTxt(v) : hist(v)).join(";"));
   downloadText(filename, lines.join("\r\n"));
 }
 function exportXlsxLanc(filename, lancRows, codEmpresa){
@@ -401,20 +462,20 @@ function calcularLinearUI(){
 
     // lançamentos
     const lanc = [];
-    lanc.push({data:dataContratacao, debito:contas.ativo, credito:"", valor: entrada+valorFinanciado, complemento:`Contratação de financiamento - ${desc} (D)`});
-    if(taxas>0) lanc.push({data:dataContratacao, debito:contas.taxas, credito:"", valor: taxas, complemento:`Taxas/tarifas financiadas - ${desc} (D)`});
-    lanc.push({data:dataContratacao, debito:"", credito:contas.finCP, valor: finCPInicial, complemento:`Financiamento a pagar CP - ${desc} (C)`});
-    lanc.push({data:dataContratacao, debito:"", credito:contas.finLP, valor: finLPInicial, complemento:`Financiamento a pagar LP - ${desc} (C)`});
-    lanc.push({data:dataContratacao, debito:contas.jurosCP, credito:"", valor: jurosCPInicial, complemento:`(-) Juros a apropriar CP - ${desc} (D)`});
-    lanc.push({data:dataContratacao, debito:contas.jurosLP, credito:"", valor: jurosLPInicial, complemento:`(-) Juros a apropriar LP - ${desc} (D)`});
+    lanc.push({data:dataContratacao, debito:contas.ativo, credito:"", valor: entrada+valorFinanciado, complemento:hist(`Contratação de financiamento - ${desc} (D)`)});
+    if(taxas>0) lanc.push({data:dataContratacao, debito:contas.taxas, credito:"", valor: taxas, complemento:hist(`Taxas/tarifas financiadas - ${desc} (D)`)});
+    lanc.push({data:dataContratacao, debito:"", credito:contas.finCP, valor: finCPInicial, complemento:hist(`Financiamento a pagar CP - ${desc} (C)`)});
+    lanc.push({data:dataContratacao, debito:"", credito:contas.finLP, valor: finLPInicial, complemento:hist(`Financiamento a pagar LP - ${desc} (C)`)});
+    lanc.push({data:dataContratacao, debito:contas.jurosCP, credito:"", valor: jurosCPInicial, complemento:hist(`(-) Juros a apropriar CP - ${desc} (D)`)});
+    lanc.push({data:dataContratacao, debito:contas.jurosLP, credito:"", valor: jurosLPInicial, complemento:hist(`(-) Juros a apropriar LP - ${desc} (D)`)});
 
     if(entrada>0){
-      lanc.push({data:dataContratacao, debito:contas.finCP, credito:contas.banco, valor: entrada, complemento:`Pagamento entrada - ${desc}`});
+      lanc.push({data:dataContratacao, debito:contas.finCP, credito:contas.banco, valor: entrada, complemento:hist(`Pagamento entrada - ${desc}`)});
     }
 
     parcelas.forEach(p=>{
-      lanc.push({data:p.vencimento, debito:contas.finCP, credito:contas.banco, valor:p.valorParcela, complemento:`Pagamento parcela ${p.n}/${nParcelas} - ${desc}`});
-      lanc.push({data:p.apropriacao, debito:contas.jurosDespesa, credito:contas.jurosCP, valor:p.juros, complemento:`Apropriação juros parcela ${p.n}/${nParcelas} - ${desc}`});
+      lanc.push({data:p.vencimento, debito:contas.finCP, credito:contas.banco, valor:p.valorParcela, complemento:hist(`Pagamento parcela ${p.n}/${nParcelas} - ${desc}`)});
+      lanc.push({data:p.apropriacao, debito:contas.jurosDespesa, credito:contas.jurosCP, valor:p.juros, complemento:hist(`Apropriação juros parcela ${p.n}/${nParcelas} - ${desc}`)});
     });
 
     // transferências anuais LP -> CP em cada 31/12 dentro do contrato
@@ -427,10 +488,10 @@ function calcularLinearUI(){
       const qtdTransfer = Math.min(12, restantesAposCorte);
       const valorFin = valorParcela*qtdTransfer;
       const valorJuros = jurosMensal*qtdTransfer;
-      lanc.push({data:corte, debito:"", credito:contas.finCP, valor:valorFin, complemento:`Transferência LP→CP - ${desc}`, yearend:true});
-      lanc.push({data:corte, debito:contas.finLP, credito:"", valor:valorFin, complemento:`Transferência LP→CP - ${desc}`, yearend:true});
-      lanc.push({data:corte, debito:contas.jurosCP, credito:"", valor:valorJuros, complemento:`Transferência juros LP→CP - ${desc}`, yearend:true});
-      lanc.push({data:corte, debito:"", credito:contas.jurosLP, valor:valorJuros, complemento:`Transferência juros LP→CP - ${desc}`, yearend:true});
+      lanc.push({data:corte, debito:"", credito:contas.finCP, valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${desc} no LP para o CP`), yearend:true});
+      lanc.push({data:corte, debito:contas.finLP, credito:"", valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${desc} no LP para o CP`), yearend:true});
+      lanc.push({data:corte, debito:contas.jurosCP, credito:"", valor:valorJuros, complemento:hist(`Transferencia de juros a apropriar ${desc} no LP para o CP`), yearend:true});
+      lanc.push({data:corte, debito:"", credito:contas.jurosLP, valor:valorJuros, complemento:hist(`Transferencia de juros a apropriar ${desc} no LP para o CP`), yearend:true});
       ano++;
     }
     lanc.sort((a,b)=>a.data-b.data);
@@ -560,11 +621,11 @@ function onIndiceEdit(input){
 function recalcularIndice(){
   const c = window._indiceCalc;
   const lanc = [];
-  lanc.push({data:c.dataContrato, debito:c.contas.ativo, credito:"", valor: c.totalNominal, complemento:`Contratação de parcelamento - ${c.desc} (D)`});
-  lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finCP, valor: c.finCPInicial, complemento:`Financiamento a pagar CP - ${c.desc} (C)`});
-  lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finLP, valor: c.finLPInicial, complemento:`Financiamento a pagar LP - ${c.desc} (C)`});
+  lanc.push({data:c.dataContrato, debito:c.contas.ativo, credito:"", valor: c.totalNominal, complemento:hist(`Contratação de parcelamento - ${c.desc} (D)`)});
+  lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finCP, valor: c.finCPInicial, complemento:hist(`Financiamento a pagar CP - ${c.desc} (C)`)});
+  lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finLP, valor: c.finLPInicial, complemento:hist(`Financiamento a pagar LP - ${c.desc} (C)`)});
   if(c.entrada>0){
-    lanc.push({data:c.dataContrato, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:`Pagamento entrada - ${c.desc}`});
+    lanc.push({data:c.dataContrato, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:hist(`Pagamento entrada - ${c.desc}`)});
   }
 
   c.parcelas.forEach(p=>{
@@ -574,12 +635,12 @@ function recalcularIndice(){
     document.getElementById(`I_valCorr_${p.n}`).textContent = fmtBRL(valorCorrigido);
     if(Math.abs(correcao) > 0.0001){
       if(correcao>0){
-        lanc.push({data:p.vencimento, debito:c.contas.correcao, credito:"", valor:correcao, complemento:`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`});
+        lanc.push({data:p.vencimento, debito:c.contas.correcao, credito:"", valor:correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`)});
       } else {
-        lanc.push({data:p.vencimento, debito:"", credito:c.contas.correcao, valor:-correcao, complemento:`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`});
+        lanc.push({data:p.vencimento, debito:"", credito:c.contas.correcao, valor:-correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
       }
     }
-    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:c.contas.banco, valor:valorCorrigido, complemento:`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc}`});
+    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:c.contas.banco, valor:valorCorrigido, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc}`)});
   });
 
   // transferências anuais LP -> CP (valores nominais)
@@ -591,8 +652,8 @@ function recalcularIndice(){
     if(restantesAposCorte<=0) break;
     const qtdTransfer = Math.min(12, restantesAposCorte);
     const valorFin = c.valorParcela*qtdTransfer;
-    lanc.push({data:corte, debito:"", credito:c.contas.finCP, valor:valorFin, complemento:`Transferência LP→CP - ${c.desc}`, yearend:true});
-    lanc.push({data:corte, debito:c.contas.finLP, credito:"", valor:valorFin, complemento:`Transferência LP→CP - ${c.desc}`, yearend:true});
+    lanc.push({data:corte, debito:"", credito:c.contas.finCP, valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${c.desc} no LP para o CP`), yearend:true});
+    lanc.push({data:corte, debito:c.contas.finLP, credito:"", valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${c.desc} no LP para o CP`), yearend:true});
     ano++;
   }
   lanc.sort((a,b)=>a.data-b.data);
