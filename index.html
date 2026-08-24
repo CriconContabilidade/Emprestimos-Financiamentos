@@ -294,8 +294,11 @@ function downloadXlsx(filename, rowsAoA, sheetName){
   XLSX.writeFile(wb, filename);
 }
 const LANC_HEADER = ["Data","Débito","Crédito","Valor","Cód. Hist.","Complemento Histórico","Inicia Lote","Código Emp.","Centro de Custo Débito","Centro de Custo Crédito"];
+// "Inicia Lote"=1 marca a 1ª linha de um lançamento — linhas seguintes com Inicia Lote em
+// branco pertencem ao mesmo lote (lançamento composto, várias contas): só a SOMA do lote
+// precisa fechar Débito=Crédito, não cada linha isoladamente.
 function lancRowArray(r, codEmpresa){
-  return [r.data?fmtDateBR(r.data):"", r.debito||"", r.credito||"", r.valor, "", r.complemento||"", 1, codEmpresa||"", "", ""];
+  return [r.data?fmtDateBR(r.data):"", r.debito||"", r.credito||"", r.valor, "", r.complemento||"", r.iniciaLote?1:"", codEmpresa||"", "", ""];
 }
 function parseBRL(str){
   if(str==null) return 0;
@@ -319,7 +322,7 @@ function renderLancTable(containerId, lancRows, codEmpresa){
   window._lancTables[containerId] = {rows: lancRows, codEmpresa};
   const el = document.getElementById(containerId);
   if(!lancRows.length){ el.innerHTML = "<div class='help'>Nenhum lançamento gerado.</div>"; return; }
-  let html = `<table class="preview"><thead><tr><th>Data</th><th>Débito</th><th>Crédito</th><th>Valor</th><th>Histórico</th><th></th></tr></thead><tbody>`;
+  let html = `<table class="preview"><thead><tr><th>Data</th><th>Débito</th><th>Crédito</th><th>Valor</th><th>Histórico</th><th title="Marca a 1ª linha de um lançamento composto">Inicia Lote</th><th></th></tr></thead><tbody>`;
   lancRows.forEach((r,i)=>{
     const cls = r.yearend ? " class='yearend'" : "";
     html += `<tr${cls}>
@@ -328,6 +331,7 @@ function renderLancTable(containerId, lancRows, codEmpresa){
       <td class="cell"><input class="cell-input" style="width:60px" value="${r.credito||''}" onchange="editLanc('${containerId}',${i},'credito',this.value)"></td>
       <td class="cell"><input class="cell-input num" style="width:100px" value="${fmtBRL(r.valor)}" onchange="editLanc('${containerId}',${i},'valor',this.value)"></td>
       <td class="cell"><input class="cell-input wide" style="width:340px" value="${r.complemento||''}" onchange="editLanc('${containerId}',${i},'complemento',this.value)"></td>
+      <td style="text-align:center"><input type="checkbox" ${r.iniciaLote?'checked':''} onchange="editLanc('${containerId}',${i},'iniciaLote',this.checked)"></td>
       <td><button class="btn small ghost" onclick="removeLancRow('${containerId}',${i})">✕</button></td>
     </tr>`;
   });
@@ -345,6 +349,8 @@ function editLanc(containerId, i, field, value){
     r.valor = parseBRL(value);
   } else if(field==="complemento"){
     r.complemento = hist(value.trim());
+  } else if(field==="iniciaLote"){
+    r.iniciaLote = !!value;
   } else {
     r[field] = value.trim();
   }
@@ -360,7 +366,7 @@ function addLancRow(containerId){
   const t = window._lancTables[containerId];
   if(!t) return;
   const last = t.rows[t.rows.length-1];
-  t.rows.push({data: last?last.data:new Date(), debito:"", credito:"", valor:0, complemento:""});
+  t.rows.push({data: last?last.data:new Date(), debito:"", credito:"", valor:0, complemento:"", iniciaLote:true});
   renderLancTable(containerId, t.rows, t.codEmpresa);
 }
 function exportTxt(filename, lancRows, codEmpresa){
@@ -462,7 +468,7 @@ function calcularLinearUI(){
 
     // lançamentos
     const lanc = [];
-    lanc.push({data:dataContratacao, debito:contas.ativo, credito:"", valor: entrada+valorFinanciado, complemento:hist(`Contratação de financiamento - ${desc} (D)`)});
+    lanc.push({data:dataContratacao, debito:contas.ativo, credito:"", valor: entrada+valorFinanciado, complemento:hist(`Contratação de financiamento - ${desc} (D)`), iniciaLote:true});
     if(taxas>0) lanc.push({data:dataContratacao, debito:contas.taxas, credito:"", valor: taxas, complemento:hist(`Taxas/tarifas financiadas - ${desc} (D)`)});
     lanc.push({data:dataContratacao, debito:"", credito:contas.finCP, valor: finCPInicial, complemento:hist(`Financiamento a pagar CP - ${desc} (C)`)});
     lanc.push({data:dataContratacao, debito:"", credito:contas.finLP, valor: finLPInicial, complemento:hist(`Financiamento a pagar LP - ${desc} (C)`)});
@@ -470,12 +476,12 @@ function calcularLinearUI(){
     lanc.push({data:dataContratacao, debito:contas.jurosLP, credito:"", valor: jurosLPInicial, complemento:hist(`(-) Juros a apropriar LP - ${desc} (D)`)});
 
     if(entrada>0){
-      lanc.push({data:dataContratacao, debito:contas.finCP, credito:contas.banco, valor: entrada, complemento:hist(`Pagamento entrada - ${desc}`)});
+      lanc.push({data:dataContratacao, debito:contas.finCP, credito:contas.banco, valor: entrada, complemento:hist(`Pagamento entrada - ${desc}`), iniciaLote:true});
     }
 
     parcelas.forEach(p=>{
-      lanc.push({data:p.vencimento, debito:contas.finCP, credito:contas.banco, valor:p.valorParcela, complemento:hist(`Pagamento parcela ${p.n}/${nParcelas} - ${desc}`)});
-      lanc.push({data:p.apropriacao, debito:contas.jurosDespesa, credito:contas.jurosCP, valor:p.juros, complemento:hist(`Apropriação juros parcela ${p.n}/${nParcelas} - ${desc}`)});
+      lanc.push({data:p.vencimento, debito:contas.finCP, credito:contas.banco, valor:p.valorParcela, complemento:hist(`Pagamento parcela ${p.n}/${nParcelas} - ${desc}`), iniciaLote:true});
+      lanc.push({data:p.apropriacao, debito:contas.jurosDespesa, credito:contas.jurosCP, valor:p.juros, complemento:hist(`Apropriação juros parcela ${p.n}/${nParcelas} - ${desc}`), iniciaLote:true});
     });
 
     // transferências anuais LP -> CP em cada 31/12 dentro do contrato
@@ -488,7 +494,7 @@ function calcularLinearUI(){
       const qtdTransfer = Math.min(12, restantesAposCorte);
       const valorFin = valorParcela*qtdTransfer;
       const valorJuros = jurosMensal*qtdTransfer;
-      lanc.push({data:corte, debito:"", credito:contas.finCP, valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${desc} no LP para o CP`), yearend:true});
+      lanc.push({data:corte, debito:"", credito:contas.finCP, valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${desc} no LP para o CP`), yearend:true, iniciaLote:true});
       lanc.push({data:corte, debito:contas.finLP, credito:"", valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${desc} no LP para o CP`), yearend:true});
       lanc.push({data:corte, debito:contas.jurosCP, credito:"", valor:valorJuros, complemento:hist(`Transferencia de juros a apropriar ${desc} no LP para o CP`), yearend:true});
       lanc.push({data:corte, debito:"", credito:contas.jurosLP, valor:valorJuros, complemento:hist(`Transferencia de juros a apropriar ${desc} no LP para o CP`), yearend:true});
@@ -621,18 +627,23 @@ function onIndiceEdit(input){
 function recalcularIndice(){
   const c = window._indiceCalc;
   const lanc = [];
-  lanc.push({data:c.dataContrato, debito:c.contas.ativo, credito:"", valor: c.totalNominal, complemento:hist(`Contratação de parcelamento - ${c.desc} (D)`)});
+  lanc.push({data:c.dataContrato, debito:c.contas.ativo, credito:"", valor: c.totalNominal, complemento:hist(`Contratação de parcelamento - ${c.desc} (D)`), iniciaLote:true});
   lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finCP, valor: c.finCPInicial, complemento:hist(`Financiamento a pagar CP - ${c.desc} (C)`)});
   lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finLP, valor: c.finLPInicial, complemento:hist(`Financiamento a pagar LP - ${c.desc} (C)`)});
   if(c.entrada>0){
-    lanc.push({data:c.dataContrato, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:hist(`Pagamento entrada - ${c.desc}`)});
+    lanc.push({data:c.dataContrato, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:hist(`Pagamento entrada - ${c.desc}`), iniciaLote:true});
   }
 
+  // Cada parcela é um lote de 2 ou 3 linhas que precisa fechar Débito=Crédito sozinho:
+  // D Financiamento a Pagar pelo valor NOMINAL da parcela, D/C Correção Monetária pela
+  // diferença (se o índice subiu, debita a diferença; se caiu, credita), C Banco pelo
+  // valor efetivamente pago (já corrigido).
   c.parcelas.forEach(p=>{
     const correcao = p.valorNominal*(p.indice/c.indiceBase - 1);
     const valorCorrigido = p.valorNominal + correcao;
     document.getElementById(`I_corr_${p.n}`).textContent = fmtBRL(correcao);
     document.getElementById(`I_valCorr_${p.n}`).textContent = fmtBRL(valorCorrigido);
+    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:"", valor:p.valorNominal, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`), iniciaLote:true});
     if(Math.abs(correcao) > 0.0001){
       if(correcao>0){
         lanc.push({data:p.vencimento, debito:c.contas.correcao, credito:"", valor:correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`)});
@@ -640,7 +651,7 @@ function recalcularIndice(){
         lanc.push({data:p.vencimento, debito:"", credito:c.contas.correcao, valor:-correcao, complemento:hist(`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
       }
     }
-    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:c.contas.banco, valor:valorCorrigido, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc}`)});
+    lanc.push({data:p.vencimento, debito:"", credito:c.contas.banco, valor:valorCorrigido, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`)});
   });
 
   // transferências anuais LP -> CP (valores nominais)
@@ -652,7 +663,7 @@ function recalcularIndice(){
     if(restantesAposCorte<=0) break;
     const qtdTransfer = Math.min(12, restantesAposCorte);
     const valorFin = c.valorParcela*qtdTransfer;
-    lanc.push({data:corte, debito:"", credito:c.contas.finCP, valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${c.desc} no LP para o CP`), yearend:true});
+    lanc.push({data:corte, debito:"", credito:c.contas.finCP, valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${c.desc} no LP para o CP`), yearend:true, iniciaLote:true});
     lanc.push({data:corte, debito:c.contas.finLP, credito:"", valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${c.desc} no LP para o CP`), yearend:true});
     ano++;
   }
