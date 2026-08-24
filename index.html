@@ -125,6 +125,10 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
         <div class="t">🏗️ Parcelamento com correção monetária</div>
         <div class="d">Sem juros compensatórios — parcelas fixas atualizadas mês a mês por um índice (CUB, IGP-M etc.), como compra de imóvel/terreno parcelada.</div>
       </div>
+      <div class="mode-tab" id="tabPrice" onclick="setModo('price')">
+        <div class="t">💹 Financiamento com CDI pós-fixado (Tabela Price)</div>
+        <div class="d">Taxa fixa + CDI flutuante, recalculado mês a mês pela fórmula Price sobre o saldo devedor — a parcela realmente muda com o CDI, não é fixa (CCB pós-fixada, financiamento de veículo etc.).</div>
+      </div>
     </div>
     <div class="help" id="modoHelp"></div>
   </div>
@@ -250,6 +254,65 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
       <button class="btn" onclick="recalcularIndice()">Recalcular tabela</button>
       <button class="btn" onclick="downloadIndiceTxt()">Baixar TXT de lançamentos</button>
       <button class="btn ghost" onclick="downloadIndiceXlsx()">Baixar planilha (.xlsx)</button>
+    </div>
+  </div>
+
+  <!-- =================== MODO PRICE + CDI =================== -->
+  <div class="card hidden" id="cardPrice">
+    <div class="section-title">Dados do contrato</div>
+    <div class="field-row">
+      <div class="field"><label>Descrição / Credor</label><input id="P_desc" placeholder="Ex.: CredCrea CCB 160.026"></div>
+      <div class="field"><label>Código empresa (Domínio)</label><input id="P_codEmpresa"></div>
+      <div class="field"><label>Data da contratação/liberação</label><input type="date" id="P_dataContratacao"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Valor líquido financiado (R$)</label><input type="number" step="0.01" id="P_valorFinanciado"></div>
+      <div class="field"><label>Taxas/tarifas financiadas (R$)</label><input type="number" step="0.01" id="P_taxas" value="0"></div>
+      <div class="field"><label>Entrada (R$, opcional)</label><input type="number" step="0.01" id="P_entrada" value="0"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Taxa fixa (% ao mês)</label><input type="number" step="0.0001" id="P_taxaFixa"><div class="hint">Parte fixa do contrato (ex.: 0,25%) — o CDI entra à parte, mês a mês</div></div>
+      <div class="field"><label>Nº de parcelas</label><input type="number" step="1" id="P_nParcelas"></div>
+      <div class="field"><label>Data da 1ª parcela</label><input type="date" id="P_dataPrimeiraParcela"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Corte curto/longo prazo</label><input type="date" id="P_dataCorte"></div>
+    </div>
+
+    <div class="section-title" style="margin-top:18px;">Plano de contas</div>
+    <div class="field-row">
+      <div class="field"><label>D — Imobilizado/Banco (Ativo)</label><input id="P_contaAtivo"></div>
+      <div class="field"><label>D — Taxas Bancárias (despesa)</label><input id="P_contaTaxas"></div>
+      <div class="field"><label>C/D — Financiamento a Pagar (CP)</label><input id="P_contaFinCP"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>C/D — Financiamento a Pagar (LP)</label><input id="P_contaFinLP"></div>
+      <div class="field"><label>D — Juros sobre Empréstimos (despesa)</label><input id="P_contaJurosDespesa"></div>
+      <div class="field"><label>C — Banco (pagamento)</label><input id="P_contaBanco"></div>
+    </div>
+
+    <div class="btn-row"><button class="btn" onclick="calcularPriceUI()">Calcular</button></div>
+    <div id="P_status" class="status-line hidden"></div>
+  </div>
+
+  <div class="card hidden" id="P_resultado">
+    <div class="section-title">Resumo</div>
+    <div class="summary-row" id="P_summary"></div>
+    <div class="help">O CDI futuro não é previsível — a taxa de cada mês fica com o <b>último CDI conhecido</b> até você atualizar. Sempre que o Banco Central publicar o CDI do mês (ele sai todo dia útil, acumulado), clique em "Atualizar" pra recalcular a parcela, os juros e o saldo devedor de aí em diante — isso muda o valor de todas as parcelas futuras, exatamente como acontece no banco.</div>
+    <div class="btn-row" style="margin-top:0;margin-bottom:4px;">
+      <button class="btn ghost" onclick="atualizarCdiPrice()">🔄 Atualizar CDI automaticamente (Banco Central)</button>
+    </div>
+    <div id="P_statusCdi" class="status-line hidden"></div>
+    <div class="section-title">Cronograma (edite o CDI do mês, em % a.m.)</div>
+    <div class="table-wrap" id="P_scheduleTable"></div>
+    <div class="section-title" style="margin-top:18px;">Lançamentos contábeis</div>
+    <div class="help">Todas as células são editáveis. <b>Atenção:</b> editar um CDI acima recalcula a tabela inteira (o saldo devedor e a parcela de todos os meses seguintes mudam) e descarta edições manuais feitas aqui — ajuste o CDI primeiro, edite os lançamentos por último.</div>
+    <div class="table-wrap" id="P_lancTable"></div>
+    <div class="btn-row">
+      <button class="btn ghost" onclick="addLancRow('P_lancTable')">+ Novo lançamento</button>
+      <button class="btn" onclick="recalcularPrice()">Recalcular tabela</button>
+      <button class="btn" onclick="downloadPriceTxt()">Baixar TXT de lançamentos</button>
+      <button class="btn ghost" onclick="downloadPriceXlsx()">Baixar planilha (.xlsx)</button>
     </div>
   </div>
 
@@ -386,16 +449,20 @@ function exportXlsxLanc(filename, lancRows, codEmpresa){
    MODO TABS
    ========================================================================= */
 const MODO_HELP = {
-  linear: "Você informa o valor financiado, a taxa de juros (ou já sabe o valor da parcela informado pelo banco) e o nº de parcelas. Os juros totais são calculados em linha reta (juros simples sobre o valor financiado) e amortizados igualmente mês a mês — mesmo método usado nos financiamentos bancários tradicionais do escritório.",
-  indice: "Sem juros — as parcelas nominais são fixas e corrigidas mensalmente por um índice (CUB, IGP-M etc.), publicado mês a mês. Como o índice futuro não é conhecido, a correção de cada parcela é lançada quando o valor do índice daquele mês estiver disponível."
+  linear: "Você informa o valor financiado, a taxa de juros (ou já sabe o valor da parcela informado pelo banco) e o nº de parcelas. Os juros totais são calculados em linha reta (juros simples sobre o valor financiado) e amortizados igualmente mês a mês — use só quando a parcela realmente é fixa do início ao fim.",
+  indice: "Sem juros — as parcelas nominais são fixas e corrigidas mensalmente por um índice (CUB, IGP-M etc.), publicado mês a mês. Como o índice futuro não é conhecido, a correção de cada parcela é lançada quando o valor do índice daquele mês estiver disponível.",
+  price: "Taxa fixa + CDI pós-fixado, como a maioria das CCBs — a parcela NÃO é fixa: é recalculada todo mês pela fórmula Price sobre o saldo devedor remanescente, com a taxa daquele mês (fixa + CDI do mês). Como o CDI futuro não é conhecido, cada mês usa o último CDI informado até você atualizar."
 };
 function setModo(m){
   document.getElementById("tabLinear").classList.toggle("active", m==="linear");
   document.getElementById("tabIndice").classList.toggle("active", m==="indice");
+  document.getElementById("tabPrice").classList.toggle("active", m==="price");
   document.getElementById("cardLinear").classList.toggle("hidden", m!=="linear");
   document.getElementById("L_resultado").classList.toggle("hidden", m!=="linear" || !window._linearCalc);
   document.getElementById("cardIndice").classList.toggle("hidden", m!=="indice");
   document.getElementById("I_resultado").classList.toggle("hidden", m!=="indice" || !window._indiceCalc);
+  document.getElementById("cardPrice").classList.toggle("hidden", m!=="price");
+  document.getElementById("P_resultado").classList.toggle("hidden", m!=="price" || !window._priceCalc);
   document.getElementById("modoHelp").textContent = MODO_HELP[m];
 }
 function toggleModoCalcLinear(){
@@ -758,6 +825,212 @@ function downloadIndiceTxt(){
 function downloadIndiceXlsx(){
   if(!window._indiceCalc) return;
   exportXlsxLanc("lancamentos_parcelamento.xlsx", window._indiceCalc.lanc, window._indiceCalc.codEmpresa);
+}
+
+/* =========================================================================
+   MODO PRICE + CDI — a parcela NÃO é fixa: recalculada mês a mês pela
+   fórmula Price sobre o saldo devedor remanescente, com taxa = fixa + CDI
+   do mês. Sem "Juros a Apropriar" pré-lançado (o total de juros não é
+   conhecido de antemão, ao contrário do modo linear) — os juros são
+   reconhecidos (capitalizados no Financiamento a Pagar) mês a mês, à
+   medida que o CDI de cada mês é informado/atualizado.
+   ========================================================================= */
+function computePriceSchedule(c){
+  let saldo = c.baseFinanciada;
+  c.parcelas.forEach(p=>{
+    const i = c.taxaFixaMensal/100 + (p.cdiMensal||0)/100;
+    const nRestante = c.nParcelas - p.n + 1;
+    let pmt;
+    if(Math.abs(i) < 1e-12){
+      pmt = saldo / nRestante;
+    } else {
+      const fator = Math.pow(1+i, nRestante);
+      pmt = saldo * (i*fator) / (fator - 1);
+    }
+    const juros = saldo * i;
+    const amortizacao = pmt - juros;
+    p.taxaTotal = i*100;
+    p.saldoInicial = saldo;
+    p.juros = juros;
+    p.pmt = pmt;
+    p.amortizacao = amortizacao;
+    saldo = saldo - amortizacao;
+    p.saldoFinal = Math.max(saldo, 0);
+  });
+}
+function calcularPriceUI(){
+  const statusEl = document.getElementById("P_status");
+  statusEl.className = "status-line";
+  try{
+    const desc = document.getElementById("P_desc").value.trim() || "Financiamento";
+    const codEmpresa = document.getElementById("P_codEmpresa").value.trim();
+    const dataContratacao = parseDateInput(document.getElementById("P_dataContratacao").value);
+    const valorFinanciado = parseFloat(document.getElementById("P_valorFinanciado").value);
+    const taxas = parseFloat(document.getElementById("P_taxas").value)||0;
+    const entrada = parseFloat(document.getElementById("P_entrada").value)||0;
+    const taxaFixaMensal = parseFloat(document.getElementById("P_taxaFixa").value);
+    const nParcelas = parseInt(document.getElementById("P_nParcelas").value);
+    const dataPrimeiraParcela = parseDateInput(document.getElementById("P_dataPrimeiraParcela").value);
+    const dataCorte = parseDateInput(document.getElementById("P_dataCorte").value);
+
+    if(!dataContratacao || !valorFinanciado || (!taxaFixaMensal && taxaFixaMensal!==0) || !nParcelas || !dataPrimeiraParcela || !dataCorte){
+      throw new Error("Preencha data de contratação, valor financiado, taxa fixa, nº de parcelas, data da 1ª parcela e data de corte.");
+    }
+
+    const baseFinanciada = valorFinanciado + taxas;
+    const parcelas = [];
+    for(let i=1;i<=nParcelas;i++){
+      const vencimento = addMonths(dataPrimeiraParcela, i-1);
+      parcelas.push({n:i, vencimento, apropriacao: lastDayOfMonth(vencimento), cdiMensal:0});
+    }
+
+    const contas = {
+      ativo: document.getElementById("P_contaAtivo").value.trim(),
+      taxas: document.getElementById("P_contaTaxas").value.trim(),
+      finCP: document.getElementById("P_contaFinCP").value.trim(),
+      finLP: document.getElementById("P_contaFinLP").value.trim(),
+      jurosDespesa: document.getElementById("P_contaJurosDespesa").value.trim(),
+      banco: document.getElementById("P_contaBanco").value.trim()
+    };
+
+    window._priceCalc = {desc, codEmpresa, dataContratacao, valorFinanciado, taxas, entrada, taxaFixaMensal, nParcelas, dataPrimeiraParcela, dataCorte, baseFinanciada, parcelas, contas};
+
+    computePriceSchedule(window._priceCalc);
+    renderPriceScheduleTable();
+    recalcularPrice();
+
+    document.getElementById("P_resultado").classList.remove("hidden");
+    statusEl.classList.add("hidden");
+  }catch(err){
+    statusEl.textContent = "Erro: " + err.message;
+    statusEl.classList.add("err");
+    document.getElementById("P_resultado").classList.add("hidden");
+  }
+}
+function renderPriceScheduleTable(){
+  const c = window._priceCalc;
+  let html = `<table class="preview"><thead><tr><th>Parcela</th><th>Vencimento</th><th>CDI do mês (%)</th><th>Taxa total (%)</th><th>Saldo inicial</th><th>Juros</th><th>Amortização</th><th>Parcela (PMT)</th><th>Saldo final</th></tr></thead><tbody>`;
+  c.parcelas.forEach(p=>{
+    html += `<tr>
+      <td>${p.n}/${c.nParcelas}</td>
+      <td>${fmtDateBR(p.vencimento)}</td>
+      <td><input class="cell-input" type="number" step="0.0001" value="${p.cdiMensal}" data-idx="${p.n}" onchange="onPriceCdiEdit(this)"></td>
+      <td class="num">${p.taxaTotal.toFixed(4)}</td>
+      <td class="num">${fmtBRL(p.saldoInicial)}</td>
+      <td class="num">${fmtBRL(p.juros)}</td>
+      <td class="num">${fmtBRL(p.amortizacao)}</td>
+      <td class="num">${fmtBRL(p.pmt)}</td>
+      <td class="num">${fmtBRL(p.saldoFinal)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  document.getElementById("P_scheduleTable").innerHTML = html;
+
+  const totalPago = c.parcelas.reduce((s,p)=>s+p.pmt,0);
+  const totalJuros = c.parcelas.reduce((s,p)=>s+p.juros,0);
+  const proxima = c.parcelas.find(p=>p.saldoFinal>0.01) || c.parcelas[c.parcelas.length-1];
+  document.getElementById("P_summary").innerHTML = `
+    <div class="item"><div class="k">Valor total (estimado c/ CDI atual)</div><div class="v">R$ ${fmtBRL(totalPago+c.entrada)}</div></div>
+    <div class="item"><div class="k">Total de juros (estimado)</div><div class="v">R$ ${fmtBRL(totalJuros)}</div></div>
+    <div class="item"><div class="k">Próxima parcela</div><div class="v">R$ ${fmtBRL(proxima.pmt)}</div></div>
+    <div class="item"><div class="k">Fim do contrato</div><div class="v">${fmtDateBR(c.parcelas[c.parcelas.length-1].vencimento)}</div></div>
+  `;
+}
+function onPriceCdiEdit(input){
+  const c = window._priceCalc;
+  const p = c.parcelas.find(x=>x.n===parseInt(input.dataset.idx));
+  p.cdiMensal = parseFloat(input.value) || 0;
+  computePriceSchedule(c);
+  renderPriceScheduleTable();
+  recalcularPrice();
+}
+function recalcularPrice(){
+  const c = window._priceCalc;
+  const dataFim = c.parcelas[c.parcelas.length-1].vencimento;
+  const nCP = c.parcelas.filter(p=>p.vencimento<=c.dataCorte).length;
+  const finCPInicial = c.entrada + c.parcelas.slice(0,nCP).reduce((s,p)=>s+p.amortizacao,0);
+  const finLPInicial = c.baseFinanciada - (finCPInicial - c.entrada);
+
+  const lanc = [];
+  lanc.push({data:c.dataContratacao, debito:c.contas.ativo, credito:"", valor:c.entrada+c.valorFinanciado, complemento:hist(`Contratação de financiamento - ${c.desc} (D)`), iniciaLote:true});
+  if(c.taxas>0) lanc.push({data:c.dataContratacao, debito:c.contas.taxas, credito:"", valor:c.taxas, complemento:hist(`Taxas/tarifas financiadas - ${c.desc} (D)`)});
+  lanc.push({data:c.dataContratacao, debito:"", credito:c.contas.finCP, valor:finCPInicial, complemento:hist(`Financiamento a pagar CP - ${c.desc} (C)`)});
+  lanc.push({data:c.dataContratacao, debito:"", credito:c.contas.finLP, valor:finLPInicial, complemento:hist(`Financiamento a pagar LP - ${c.desc} (C)`)});
+
+  if(c.entrada>0){
+    lanc.push({data:c.dataContratacao, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:hist(`Pagamento entrada - ${c.desc}`), iniciaLote:true});
+  }
+
+  c.parcelas.forEach(p=>{
+    lanc.push({data:p.apropriacao, debito:c.contas.jurosDespesa, credito:c.contas.finCP, valor:p.juros, complemento:hist(`Apropriação juros (taxa fixa + CDI) parcela ${p.n}/${c.nParcelas} - ${c.desc}`), iniciaLote:true});
+    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:c.contas.banco, valor:p.pmt, complemento:hist(`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc}`), iniciaLote:true});
+  });
+
+  // transferências anuais LP -> CP, pela soma da AMORTIZAÇÃO (principal) das
+  // próximas até 12 parcelas — os juros nunca ficam pré-lançados no LP.
+  let ano = c.dataCorte.getFullYear();
+  while(true){
+    const corte = dec31(ano);
+    if(corte >= dataFim) break;
+    const restantes = c.parcelas.filter(p=>p.vencimento>corte);
+    if(!restantes.length) break;
+    const proximos12 = restantes.slice(0,12);
+    const valorFin = proximos12.reduce((s,p)=>s+p.amortizacao,0);
+    if(valorFin > 0.005){
+      lanc.push({data:corte, debito:"", credito:c.contas.finCP, valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${c.desc} no LP para o CP`), yearend:true, iniciaLote:true});
+      lanc.push({data:corte, debito:c.contas.finLP, credito:"", valor:valorFin, complemento:hist(`Transferencia de saldo financiado ${c.desc} no LP para o CP`), yearend:true});
+    }
+    ano++;
+  }
+
+  lanc.sort((a,b)=>a.data-b.data);
+  c.lanc = lanc;
+  renderLancTable("P_lancTable", lanc, c.codEmpresa);
+}
+async function atualizarCdiPrice(){
+  const c = window._priceCalc;
+  if(!c) return;
+  const statusEl = document.getElementById("P_statusCdi");
+  statusEl.className = "status-line";
+  statusEl.classList.remove("hidden");
+  statusEl.textContent = "Buscando...";
+  const inicio = new Date(c.dataContratacao.getFullYear(), c.dataContratacao.getMonth(), 1);
+  const hoje = new Date();
+  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.4391/dados?formato=json&dataInicial=${fmtDateAPI(inicio)}&dataFinal=${fmtDateAPI(hoje)}`;
+  try{
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error("HTTP "+resp.status);
+    const dados = await resp.json();
+    const porMes = {};
+    dados.forEach(d=>{
+      const [dd,mm,yy] = d.data.split("/");
+      porMes[`${yy}-${mm}`] = parseFloat(String(d.valor).replace(",", "."));
+    });
+    const meses = Object.keys(porMes).sort();
+    if(!meses.length) throw new Error("Nenhum dado retornado nesse período.");
+    let atualizadas = 0;
+    c.parcelas.forEach(p=>{
+      const chave = `${p.vencimento.getFullYear()}-${String(p.vencimento.getMonth()+1).padStart(2,"0")}`;
+      if(chave in porMes){ p.cdiMensal = porMes[chave]; atualizadas++; }
+    });
+    computePriceSchedule(c);
+    renderPriceScheduleTable();
+    recalcularPrice();
+    const ultimo = meses[meses.length-1].split("-");
+    statusEl.textContent = `${atualizadas} parcela(s) atualizada(s) com o CDI (Banco Central) até ${ultimo[1]}/${ultimo[0]}. Parcelas com vencimento depois disso continuam com o último CDI informado — busque de novo quando o Banco Central publicar o próximo mês.`;
+    statusEl.classList.add("ok");
+  }catch(err){
+    statusEl.textContent = "Erro ao buscar o CDI no Banco Central: " + err.message;
+    statusEl.classList.add("err");
+  }
+}
+function downloadPriceTxt(){
+  if(!window._priceCalc) return;
+  exportTxt("lanctos_financiamento_cdi.txt", window._priceCalc.lanc, window._priceCalc.codEmpresa);
+}
+function downloadPriceXlsx(){
+  if(!window._priceCalc) return;
+  exportXlsxLanc("lancamentos_financiamento_cdi.xlsx", window._priceCalc.lanc, window._priceCalc.codEmpresa);
 }
 </script>
 </body>
