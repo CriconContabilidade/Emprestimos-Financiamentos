@@ -235,6 +235,11 @@ code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM 
     <div class="section-title">Resumo</div>
     <div class="summary-row" id="I_summary"></div>
     <div class="help">Correção monetária futura não é previsível — preencha o <b>índice do mês</b> de cada parcela na tabela conforme os boletins forem publicados (por padrão fica igual ao índice-base, ou seja, sem correção). Gere o TXT quando quiser, apenas as parcelas com correção já lançada entram — reabra a ferramenta e recalcule sempre que precisar apropriar mais um mês.</div>
+    <div class="btn-row" style="margin-top:0;margin-bottom:4px;">
+      <button class="btn ghost" onclick="atualizarIndicesAutomaticamente()">🔄 Buscar índice automaticamente (Banco Central)</button>
+    </div>
+    <div class="help" style="margin-bottom:6px;">Busca automática funciona só pra <b>IGP-M</b>, <b>INCC-DI</b> e <b>IPCA</b> (séries publicadas pelo Banco Central) — preenche os meses já publicados desde a data-base e deixa os meses futuros como estão. Pra CUB (não publicado pelo Banco Central) ou outros índices, continue preenchendo manualmente.</div>
+    <div id="I_statusIndice" class="status-line hidden"></div>
     <div class="section-title">Cronograma (edite o índice do mês)</div>
     <div class="table-wrap" id="I_scheduleTable"></div>
     <div class="section-title" style="margin-top:18px;">Lançamentos contábeis</div>
@@ -600,6 +605,80 @@ function calcularIndiceUI(){
     statusEl.textContent = "Erro: " + err.message;
     statusEl.classList.add("err");
     document.getElementById("I_resultado").classList.add("hidden");
+  }
+}
+/* =========================================================================
+   BUSCA AUTOMÁTICA DE ÍNDICE — API pública do Banco Central (SGS), sem
+   chave/CORS aberto. Só cobre índices publicados pelo BC como variação %
+   mensal (IGP-M, INCC-DI, IPCA) — CUB é regional (Sinduscon), não tem API
+   pública, continua manual.
+   ========================================================================= */
+const SERIES_BCB = { "IGP-M":189, "IGPM":189, "INCC-DI":192, "INCC":192, "INCCDI":192, "IPCA":433 };
+function normalizeIndiceNome(s){ return stripAccentsForTxt(String(s||"")).toUpperCase().replace(/[^A-Z0-9-]/g,""); }
+function matchSerieBcb(nome){ return SERIES_BCB[normalizeIndiceNome(nome)] || null; }
+function fmtDateAPI(d){ return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`; }
+async function atualizarIndicesAutomaticamente(){
+  const c = window._indiceCalc;
+  if(!c) return;
+  const statusEl = document.getElementById("I_statusIndice");
+  statusEl.className = "status-line";
+  statusEl.classList.remove("hidden");
+  statusEl.textContent = "Buscando...";
+
+  const codigo = matchSerieBcb(c.indiceNome);
+  if(!codigo){
+    statusEl.textContent = `Não encontrei uma série automática pra "${c.indiceNome}" — a busca automática funciona só pra IGP-M, INCC-DI e IPCA. Preencha o índice de cada parcela manualmente.`;
+    statusEl.classList.add("err");
+    return;
+  }
+  const inicio = new Date(c.dataContrato.getFullYear(), c.dataContrato.getMonth()+1, 1);
+  const hoje = new Date();
+  if(inicio > hoje){
+    statusEl.textContent = "Ainda não há nenhum mês publicado depois da data-base do contrato.";
+    statusEl.classList.add("err");
+    return;
+  }
+  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados?formato=json&dataInicial=${fmtDateAPI(inicio)}&dataFinal=${fmtDateAPI(hoje)}`;
+  try{
+    const resp = await fetch(url);
+    if(!resp.ok) throw new Error("HTTP "+resp.status);
+    const dados = await resp.json();
+    const porMes = {};
+    dados.forEach(d=>{
+      const [dd,mm,yy] = d.data.split("/");
+      porMes[`${yy}-${mm}`] = parseFloat(String(d.valor).replace(",", "."));
+    });
+    const mesesDisponiveis = Object.keys(porMes).sort();
+    if(!mesesDisponiveis.length) throw new Error("Nenhum dado retornado nesse período.");
+
+    // Acumula o índice mês a mês a partir do índice-base (variação % composta),
+    // parando no primeiro mês sem dado publicado (evita "furos" na série).
+    let nivel = c.indiceBase;
+    const cursor = new Date(c.dataContrato.getFullYear(), c.dataContrato.getMonth()+1, 1);
+    const nivelPorMes = {};
+    while(true){
+      const chave = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,"0")}`;
+      if(!(chave in porMes)) break;
+      nivel = nivel * (1 + porMes[chave]/100);
+      nivelPorMes[chave] = nivel;
+      cursor.setMonth(cursor.getMonth()+1);
+    }
+
+    let atualizadas = 0;
+    c.parcelas.forEach(p=>{
+      const chave = `${p.vencimento.getFullYear()}-${String(p.vencimento.getMonth()+1).padStart(2,"0")}`;
+      if(chave in nivelPorMes){ p.indice = nivelPorMes[chave]; atualizadas++; }
+    });
+
+    renderIndiceScheduleTable();
+    recalcularIndice();
+
+    const ultimo = mesesDisponiveis[mesesDisponiveis.length-1].split("-");
+    statusEl.textContent = `${atualizadas} parcela(s) atualizada(s) com ${c.indiceNome} (Banco Central) até ${ultimo[1]}/${ultimo[0]}. Parcelas com vencimento depois disso continuam com o último índice informado — busque de novo quando o Banco Central publicar o próximo mês.`;
+    statusEl.classList.add("ok");
+  }catch(err){
+    statusEl.textContent = "Erro ao buscar o índice no Banco Central: " + err.message;
+    statusEl.classList.add("err");
   }
 }
 function renderIndiceScheduleTable(){
