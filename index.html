@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empréstimos e Financiamentos</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --ink:#1A1A1A;
+  --ink-soft:#65656B;
+  --paper:#E7E6E2;
+  --paper-raised:#FFFFFF;
+  --rule:#D6D5D1;
+  --rule-strong:#A9A7A2;
+  --red:#A6392C;
+  --red-bg:#F6E1DC;
+  --green-ink:#1F5E3C;
+  --green-bg:#DEEEE3;
+  --amber:#8A6400;
+  --amber-bg:#FCEEA9;
+  --accent:#2B4C7E;
+  --accent-bg:#DDE6F2;
+  --shadow: 0 1px 2px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.06);
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'IBM Plex Sans',sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.app{max-width:1200px;margin:0 auto;padding:28px 20px 80px;}
+
+.topbar{padding-bottom:18px;margin-bottom:22px;border-bottom:2px solid var(--ink);display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;}
+.brand h1{font-family:'Source Serif 4',serif;font-size:26px;font-weight:800;margin:0 0 4px;letter-spacing:-0.01em;}
+.brand .sub{font-size:13px;color:var(--ink-soft);max-width:640px;}
+.backlink{font-size:12.5px;color:var(--ink-soft);text-decoration:none;border-bottom:1px dotted var(--ink-soft);}
+.backlink:hover{color:var(--ink);}
+.cricon-brand{display:flex;align-items:center;gap:8px;}
+.cricon-brand svg{width:28px;height:auto;flex-shrink:0;}
+.cricon-brand .cw{line-height:1.05;text-align:right;}
+.cricon-brand .cw .nm{font-family:'Source Serif 4',serif;font-style:italic;font-weight:700;font-size:14px;color:#5D4232;white-space:nowrap;}
+.cricon-brand .cw .tg{font-family:'IBM Plex Sans',sans-serif;font-size:9px;color:var(--ink-soft);letter-spacing:.02em;white-space:nowrap;}
+
+.card{background:var(--paper-raised);border:1.5px solid var(--ink);border-radius:6px;box-shadow:var(--shadow);padding:20px;margin-bottom:20px;}
+
+.mode-tabs{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.mode-tab{flex:1;min-width:220px;border:1.5px solid var(--rule-strong);border-radius:6px;padding:14px 16px;cursor:pointer;background:var(--paper-raised);transition:border-color .15s, background .15s;}
+.mode-tab:hover{border-color:var(--ink);}
+.mode-tab.active{border-color:var(--ink);background:var(--accent-bg);}
+.mode-tab .t{font-weight:700;font-size:14px;margin-bottom:3px;}
+.mode-tab .d{font-size:11.5px;color:var(--ink-soft);line-height:1.4;}
+
+.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:14px;}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:4px;font-family:'IBM Plex Mono',monospace;}
+.field input,.field select,.field textarea{width:100%;padding:7px 9px;border:1.5px solid var(--rule-strong);border-radius:4px;font-size:13.5px;font-family:'IBM Plex Mono',monospace;background:var(--paper-raised);color:var(--ink);}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--ink);}
+.field .hint{font-size:10.5px;color:var(--ink-soft);margin-top:3px;}
+
+.radio-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;}
+.radio-opt{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
+.radio-opt input{width:auto;}
+
+.btn{padding:9px 16px;border-radius:4px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;font-weight:600;font-size:13.5px;transition:transform .08s ease,opacity .15s;font-family:'IBM Plex Sans',sans-serif;}
+.btn:hover{opacity:.88;}
+.btn:active{transform:translateY(1px);}
+.btn.ghost{background:transparent;color:var(--ink);}
+.btn.ghost:hover{background:rgba(0,0,0,0.06);}
+.btn.small{padding:5px 10px;font-size:12px;}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+
+.status-line{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ink-soft);margin-top:10px;white-space:pre-wrap;}
+.status-line.err{color:var(--red);}
+.status-line.ok{color:var(--green-ink);}
+
+.summary-row{display:flex;gap:22px;flex-wrap:wrap;margin:4px 0 18px;font-size:13px;}
+.summary-row .item .k{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:.03em;font-family:'IBM Plex Mono',monospace;}
+.summary-row .item .v{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:17px;}
+
+table.preview{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
+table.preview th{text-align:left;padding:7px 8px;border-bottom:1.5px solid var(--rule-strong);font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);position:sticky;top:0;background:var(--paper-raised);white-space:nowrap;}
+table.preview td{padding:6px 8px;border-bottom:1px solid var(--rule);vertical-align:top;white-space:nowrap;}
+table.preview td.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+table.preview tr.yearend{background:var(--amber-bg);}
+.table-wrap{max-height:460px;overflow:auto;border:1px solid var(--rule);border-radius:4px;}
+.cell-input{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 5px;border:1.5px solid var(--rule-strong);border-radius:3px;background:var(--paper-raised);color:var(--ink);width:90px;text-align:right;}
+.cell-input:focus{outline:none;border-color:var(--ink);}
+
+.hidden{display:none !important;}
+.section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin:0 0 12px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;}
+.help{font-size:12px;color:var(--ink-soft);line-height:1.5;margin-bottom:14px;}
+.help b{color:var(--ink);}
+footer{margin-top:30px;font-size:11.5px;color:var(--ink-soft);text-align:center;}
+code{background:var(--paper);padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>Empréstimos e Financiamentos</h1>
+      <div class="sub">Processamento 100% local no navegador — calcula o valor final do contrato, separa em curto/longo prazo e gera as provisões mensais de juros/correção até o fim do contrato, prontas para importação no Domínio.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+      <a class="backlink" href="https://criconcontabilidade.github.io/Cricon-Ferramentas/" onclick="window.close(); setTimeout(function(){ location.href='https://criconcontabilidade.github.io/Cricon-Ferramentas/'; }, 250); return false;">← Hub de Ferramentas</a>
+      <div class="cricon-brand">
+        <svg viewBox="0 0 141 109" xmlns="http://www.w3.org/2000/svg"><path d="M 15.33 33.25 L 9.50 52.58 L 11.33 74.33 L 19.08 90.67 L 36.17 102.92 L 57.25 104.92 L 73.25 100.08 L 84.92 104.83 L 100.25 104.83 L 115.75 97.92 L 126.00 85.67 L 129.92 74.17 L 130.25 61.92 L 60.92 62.08 L 62.42 49.00 L 130.58 48.75 L 129.92 37.75 L 126.75 29.75 L 118.33 20.33 L 111.42 16.33 L 97.92 12.75 L 88.58 12.67 L 72.58 18.17 L 59.83 13.67 L 41.33 13.58 L 26.42 20.42 Z M 78.58 93.58 L 86.00 80.08 L 86.00 78.42 L 87.00 77.08 L 87.00 74.33 L 87.92 72.75 L 88.33 69.50 L 120.42 69.42 L 121.00 69.92 L 121.08 74.17 L 120.17 75.42 L 120.08 77.17 L 119.25 78.25 L 119.25 79.58 L 117.33 83.67 L 115.83 85.17 L 114.75 87.33 L 111.33 90.75 L 109.25 91.75 L 108.08 92.92 L 102.33 95.92 L 100.33 96.00 L 98.50 97.00 L 85.58 97.00 L 84.42 96.00 L 82.58 95.92 Z M 62.33 69.50 L 78.42 69.42 L 79.25 70.08 L 79.25 70.92 L 78.33 72.58 L 78.33 74.25 L 77.42 75.42 L 77.42 77.00 L 76.50 78.25 L 76.58 79.67 L 76.00 80.33 L 75.58 81.67 L 74.92 82.33 L 74.67 83.58 L 73.92 84.33 L 73.58 85.50 L 71.67 87.58 L 71.17 87.50 L 70.75 87.00 L 69.92 86.67 L 69.00 85.25 L 66.75 82.83 L 66.25 81.42 L 63.83 77.00 L 63.75 75.25 L 62.83 74.17 L 62.83 71.67 L 61.92 70.58 L 61.92 69.92 Z M 20.17 69.75 L 20.58 69.42 L 52.00 69.67 L 52.83 70.58 L 53.17 72.50 L 54.08 73.67 L 54.17 75.50 L 55.08 76.50 L 55.00 78.17 L 56.00 80.75 L 59.67 86.42 L 60.00 87.83 L 61.58 89.33 L 61.83 90.58 L 63.50 92.33 L 63.42 93.75 L 62.58 94.83 L 61.33 95.08 L 60.33 96.00 L 58.42 96.08 L 57.42 97.00 L 43.83 97.00 L 42.58 96.00 L 41.00 96.00 L 39.75 95.08 L 38.42 95.08 L 36.25 94.08 L 34.75 92.67 L 30.33 90.25 L 26.67 86.50 L 26.42 85.33 L 23.08 81.00 L 22.83 79.08 L 21.00 76.25 L 20.92 73.83 L 20.00 72.50 Z M 19.08 50.08 L 20.42 49.00 L 51.83 49.08 L 52.33 49.58 L 52.25 55.25 L 51.42 57.83 L 51.42 61.17 L 50.67 61.83 L 18.58 61.83 L 18.08 61.33 L 18.08 58.58 L 19.08 56.17 Z M 72.67 28.83 L 75.50 31.67 L 76.58 33.58 L 77.42 34.58 L 77.58 36.42 L 78.42 37.50 L 78.33 38.92 L 79.33 40.33 L 79.25 41.00 L 78.50 41.42 L 65.25 41.33 L 64.67 40.58 L 64.58 39.67 L 65.42 38.50 L 65.67 37.42 L 66.42 36.50 L 66.58 35.50 L 68.00 33.92 L 68.50 32.58 L 72.00 29.00 Z M 80.17 23.67 L 81.50 22.33 L 82.75 22.00 L 83.75 21.17 L 85.50 21.08 L 86.58 20.17 L 99.25 20.17 L 100.33 21.08 L 103.00 21.17 L 104.25 22.08 L 107.75 23.08 L 109.42 24.67 L 112.67 26.00 L 117.08 30.42 L 120.17 35.50 L 120.17 37.00 L 121.17 38.50 L 121.08 40.83 L 120.42 41.42 L 88.50 41.42 L 87.92 40.67 L 87.92 38.33 L 86.92 36.92 L 86.92 34.50 L 86.17 33.75 L 84.75 30.33 L 80.75 25.42 Z M 64.58 23.67 L 63.33 26.33 L 61.08 28.58 L 60.67 29.83 L 59.17 31.33 L 58.75 32.75 L 57.33 34.33 L 56.08 37.00 L 55.92 38.33 L 55.08 39.25 L 55.08 40.75 L 54.42 41.42 L 22.58 41.50 L 22.17 41.17 L 22.92 39.42 L 22.83 38.42 L 26.83 31.42 L 33.17 25.17 L 41.00 21.17 L 43.58 21.08 L 44.75 20.17 L 57.50 20.17 L 58.92 21.00 L 60.83 21.17 L 63.08 22.17 Z" fill="#5D4232" fill-rule="evenodd"/></svg>
+        <div class="cw"><div class="nm">Contabilidade Cricon</div><div class="tg">Contabilizando seu sucesso!</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Tipo de contrato</div>
+    <div class="mode-tabs">
+      <div class="mode-tab active" id="tabLinear" onclick="setModo('linear')">
+        <div class="t">📉 Empréstimo / Financiamento com juros</div>
+        <div class="d">Juros conhecidos (taxa fixa ou parcela já informada pelo banco), amortizados em linha reta até o fim do contrato — CCB, financiamento bancário, empréstimo com parcela fixa.</div>
+      </div>
+      <div class="mode-tab" id="tabIndice" onclick="setModo('indice')">
+        <div class="t">🏗️ Parcelamento com correção monetária</div>
+        <div class="d">Sem juros compensatórios — parcelas fixas atualizadas mês a mês por um índice (CUB, IGP-M etc.), como compra de imóvel/terreno parcelada.</div>
+      </div>
+    </div>
+    <div class="help" id="modoHelp"></div>
+  </div>
+
+  <!-- =================== MODO LINEAR =================== -->
+  <div class="card" id="cardLinear">
+    <div class="section-title">Dados do contrato</div>
+    <div class="field-row">
+      <div class="field"><label>Descrição / Credor</label><input id="L_desc" placeholder="Ex.: CredCrea CCB 160.026"></div>
+      <div class="field"><label>Código empresa (Domínio)</label><input id="L_codEmpresa"></div>
+      <div class="field"><label>Data da contratação/liberação</label><input type="date" id="L_dataContratacao"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Valor líquido financiado (R$)</label><input type="number" step="0.01" id="L_valorFinanciado"></div>
+      <div class="field"><label>Taxas/tarifas financiadas (R$)</label><input type="number" step="0.01" id="L_taxas" value="0"><div class="hint">Somadas à dívida, lançadas como despesa (não geram ativo)</div></div>
+      <div class="field"><label>Entrada (R$, opcional)</label><input type="number" step="0.01" id="L_entrada" value="0"></div>
+    </div>
+
+    <div class="radio-row">
+      <label class="radio-opt"><input type="radio" name="L_modoCalc" value="taxa" checked onchange="toggleModoCalcLinear()"> Sei a taxa de juros</label>
+      <label class="radio-opt"><input type="radio" name="L_modoCalc" value="parcela" onchange="toggleModoCalcLinear()"> Sei o valor da parcela (ex.: CET do banco)</label>
+    </div>
+    <div class="field-row" id="L_camposTaxa">
+      <div class="field"><label>Taxa de juros (% ao mês)</label><input type="number" step="0.0001" id="L_taxaMensal"><div class="hint">Some a taxa fixa + a equivalente mensal do CDI/índice flutuante, se houver</div></div>
+    </div>
+    <div class="field-row hidden" id="L_camposParcela">
+      <div class="field"><label>Valor de cada parcela (R$)</label><input type="number" step="0.01" id="L_valorParcelaInformado"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Nº de parcelas</label><input type="number" step="1" id="L_nParcelas"></div>
+      <div class="field"><label>Data da 1ª parcela</label><input type="date" id="L_dataPrimeiraParcela"></div>
+      <div class="field"><label>Corte curto/longo prazo</label><input type="date" id="L_dataCorte"><div class="hint">Normalmente 31/12 do ano corrente</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:18px;">Plano de contas</div>
+    <div class="field-row">
+      <div class="field"><label>D — Imobilizado/Banco (Ativo)</label><input id="L_contaAtivo"></div>
+      <div class="field"><label>D — Taxas Bancárias (despesa)</label><input id="L_contaTaxas"></div>
+      <div class="field"><label>C/D — Financiamento a Pagar (CP)</label><input id="L_contaFinCP"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>C/D — Financiamento a Pagar (LP)</label><input id="L_contaFinLP"></div>
+      <div class="field"><label>D/C — (-) Juros a Apropriar (CP)</label><input id="L_contaJurosCP"></div>
+      <div class="field"><label>D/C — (-) Juros a Apropriar (LP)</label><input id="L_contaJurosLP"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>D — Juros sobre Empréstimos (despesa)</label><input id="L_contaJurosDespesa"></div>
+      <div class="field"><label>C — Banco (pagamento)</label><input id="L_contaBanco"></div>
+    </div>
+
+    <div class="btn-row"><button class="btn" onclick="calcularLinearUI()">Calcular</button></div>
+    <div id="L_status" class="status-line hidden"></div>
+  </div>
+
+  <div class="card hidden" id="L_resultado">
+    <div class="section-title">Resumo</div>
+    <div class="summary-row" id="L_summary"></div>
+    <div class="section-title">Cronograma</div>
+    <div class="table-wrap" id="L_scheduleTable"></div>
+    <div class="section-title" style="margin-top:18px;">Lançamentos contábeis</div>
+    <div class="table-wrap" id="L_lancTable"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="downloadLinearTxt()">Baixar TXT de lançamentos</button>
+      <button class="btn ghost" onclick="downloadLinearXlsx()">Baixar planilha (.xlsx)</button>
+    </div>
+  </div>
+
+  <!-- =================== MODO ÍNDICE =================== -->
+  <div class="card hidden" id="cardIndice">
+    <div class="section-title">Dados do contrato</div>
+    <div class="field-row">
+      <div class="field"><label>Descrição / Credor</label><input id="I_desc" placeholder="Ex.: Leve Adm. Imob. — Lote 01 Q04"></div>
+      <div class="field"><label>Código empresa (Domínio)</label><input id="I_codEmpresa"></div>
+      <div class="field"><label>Data do contrato</label><input type="date" id="I_dataContrato"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Entrada (R$, opcional)</label><input type="number" step="0.01" id="I_entrada" value="0"></div>
+      <div class="field"><label>Valor nominal de cada parcela (R$)</label><input type="number" step="0.01" id="I_valorParcela"></div>
+      <div class="field"><label>Nº de parcelas</label><input type="number" step="1" id="I_nParcelas"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Data da 1ª parcela</label><input type="date" id="I_dataPrimeiraParcela"></div>
+      <div class="field"><label>Corte curto/longo prazo</label><input type="date" id="I_dataCorte"></div>
+      <div class="field"><label>Índice de correção</label><input id="I_indiceNome" placeholder="Ex.: CUB/SC"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Valor do índice na data-base</label><input type="number" step="0.000001" id="I_indiceBase"><div class="hint">Ex.: valor do CUB/SC do mês do contrato</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:18px;">Plano de contas</div>
+    <div class="field-row">
+      <div class="field"><label>D — Ativo (Terrenos/Imóveis)</label><input id="I_contaAtivo"></div>
+      <div class="field"><label>C/D — Financiamento a Pagar (CP)</label><input id="I_contaFinCP"></div>
+      <div class="field"><label>C/D — Financiamento a Pagar (LP)</label><input id="I_contaFinLP"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>D — Correção Monetária Passiva (despesa)</label><input id="I_contaCorrecao"></div>
+      <div class="field"><label>C — Banco (pagamento)</label><input id="I_contaBanco"></div>
+    </div>
+
+    <div class="btn-row"><button class="btn" onclick="calcularIndiceUI()">Calcular</button></div>
+    <div id="I_status" class="status-line hidden"></div>
+  </div>
+
+  <div class="card hidden" id="I_resultado">
+    <div class="section-title">Resumo</div>
+    <div class="summary-row" id="I_summary"></div>
+    <div class="help">Correção monetária futura não é previsível — preencha o <b>índice do mês</b> de cada parcela na tabela conforme os boletins forem publicados (por padrão fica igual ao índice-base, ou seja, sem correção). Gere o TXT quando quiser, apenas as parcelas com correção já lançada entram — reabra a ferramenta e recalcule sempre que precisar apropriar mais um mês.</div>
+    <div class="section-title">Cronograma (edite o índice do mês)</div>
+    <div class="table-wrap" id="I_scheduleTable"></div>
+    <div class="section-title" style="margin-top:18px;">Lançamentos contábeis</div>
+    <div class="table-wrap" id="I_lancTable"></div>
+    <div class="btn-row">
+      <button class="btn" onclick="recalcularIndice()">Recalcular tabela</button>
+      <button class="btn" onclick="downloadIndiceTxt()">Baixar TXT de lançamentos</button>
+      <button class="btn ghost" onclick="downloadIndiceXlsx()">Baixar planilha (.xlsx)</button>
+    </div>
+  </div>
+
+  <footer>Empréstimos e Financiamentos · Cricon Contabilidade — uso interno</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* =========================================================================
+   HELPERS
+   ========================================================================= */
+function fmtBRL(n){ if(n==null||isNaN(n)) return ""; return n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtValorTxt(n){
+  if(n==null||n===""||isNaN(n)) return "0";
+  const r = Math.round(Number(n)*100)/100;
+  if(r===0) return "0";
+  if(Number.isInteger(r)) return String(r);
+  return r.toFixed(2).replace(".",",");
+}
+function stripAccentsForTxt(v){
+  if(typeof v!=="string") return v;
+  return v.normalize("NFD").replace(/[̀-ͯ]/g,"");
+}
+function fmtDateBR(d){ if(!d) return ""; return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`; }
+function parseDateInput(str){ if(!str) return null; const [y,m,d] = str.split("-").map(Number); return new Date(y, m-1, d); }
+function addMonths(date, n){
+  const d = new Date(date.getFullYear(), date.getMonth()+n, 1);
+  const lastDay = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+  d.setDate(Math.min(date.getDate(), lastDay));
+  return d;
+}
+function lastDayOfMonth(date){ return new Date(date.getFullYear(), date.getMonth()+1, 0); }
+function dec31(year){ return new Date(year, 11, 31); }
+function downloadText(filename, content){
+  const blob = new Blob([content], {type:"text/plain;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function downloadXlsx(filename, rowsAoA, sheetName){
+  const ws = XLSX.utils.aoa_to_sheet(rowsAoA);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName||"Sheet1");
+  XLSX.writeFile(wb, filename);
+}
+const LANC_HEADER = ["Data","Débito","Crédito","Valor","Cód. Hist.","Complemento Histórico","Inicia Lote","Código Emp.","Centro de Custo Débito","Centro de Custo Crédito"];
+function lancRowArray(r, codEmpresa){
+  return [r.data?fmtDateBR(r.data):"", r.debito||"", r.credito||"", r.valor, "", r.complemento||"", 1, codEmpresa||"", "", ""];
+}
+function renderLancTable(containerId, lancRows, codEmpresa){
+  const el = document.getElementById(containerId);
+  if(!lancRows.length){ el.innerHTML = "<div class='help'>Nenhum lançamento gerado.</div>"; return; }
+  let html = `<table class="preview"><thead><tr><th>Data</th><th>Débito</th><th>Crédito</th><th>Valor</th><th>Histórico</th></tr></thead><tbody>`;
+  lancRows.forEach(r=>{
+    const cls = r.yearend ? " class='yearend'" : "";
+    html += `<tr${cls}><td>${fmtDateBR(r.data)}</td><td>${r.debito||""}</td><td>${r.credito||""}</td><td class="num">${fmtBRL(r.valor)}</td><td>${r.complemento||""}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  el.innerHTML = html;
+}
+function exportTxt(filename, lancRows, codEmpresa){
+  const lines = lancRows.map(r => lancRowArray(r, codEmpresa).map((v,i)=> i===3 ? fmtValorTxt(v) : stripAccentsForTxt(String(v))).join(";"));
+  downloadText(filename, lines.join("\r\n"));
+}
+function exportXlsxLanc(filename, lancRows, codEmpresa){
+  downloadXlsx(filename, [LANC_HEADER, ...lancRows.map(r=>lancRowArray(r, codEmpresa))], "Lancamentos");
+}
+
+/* =========================================================================
+   MODO TABS
+   ========================================================================= */
+const MODO_HELP = {
+  linear: "Você informa o valor financiado, a taxa de juros (ou já sabe o valor da parcela informado pelo banco) e o nº de parcelas. Os juros totais são calculados em linha reta (juros simples sobre o valor financiado) e amortizados igualmente mês a mês — mesmo método usado nos financiamentos bancários tradicionais do escritório.",
+  indice: "Sem juros — as parcelas nominais são fixas e corrigidas mensalmente por um índice (CUB, IGP-M etc.), publicado mês a mês. Como o índice futuro não é conhecido, a correção de cada parcela é lançada quando o valor do índice daquele mês estiver disponível."
+};
+function setModo(m){
+  document.getElementById("tabLinear").classList.toggle("active", m==="linear");
+  document.getElementById("tabIndice").classList.toggle("active", m==="indice");
+  document.getElementById("cardLinear").classList.toggle("hidden", m!=="linear");
+  document.getElementById("L_resultado").classList.toggle("hidden", m!=="linear" || !window._linearCalc);
+  document.getElementById("cardIndice").classList.toggle("hidden", m!=="indice");
+  document.getElementById("I_resultado").classList.toggle("hidden", m!=="indice" || !window._indiceCalc);
+  document.getElementById("modoHelp").textContent = MODO_HELP[m];
+}
+function toggleModoCalcLinear(){
+  const modo = document.querySelector('input[name="L_modoCalc"]:checked').value;
+  document.getElementById("L_camposTaxa").classList.toggle("hidden", modo!=="taxa");
+  document.getElementById("L_camposParcela").classList.toggle("hidden", modo!=="parcela");
+}
+setModo("linear");
+
+/* =========================================================================
+   MODO LINEAR — cálculo
+   ========================================================================= */
+function calcularLinearUI(){
+  const statusEl = document.getElementById("L_status");
+  statusEl.className = "status-line";
+  try{
+    const desc = document.getElementById("L_desc").value.trim() || "Financiamento";
+    const codEmpresa = document.getElementById("L_codEmpresa").value.trim();
+    const dataContratacao = parseDateInput(document.getElementById("L_dataContratacao").value);
+    const valorFinanciado = parseFloat(document.getElementById("L_valorFinanciado").value);
+    const taxas = parseFloat(document.getElementById("L_taxas").value)||0;
+    const entrada = parseFloat(document.getElementById("L_entrada").value)||0;
+    const modoCalc = document.querySelector('input[name="L_modoCalc"]:checked').value;
+    const nParcelas = parseInt(document.getElementById("L_nParcelas").value);
+    const dataPrimeiraParcela = parseDateInput(document.getElementById("L_dataPrimeiraParcela").value);
+    const dataCorte = parseDateInput(document.getElementById("L_dataCorte").value);
+
+    if(!dataContratacao || !valorFinanciado || !nParcelas || !dataPrimeiraParcela || !dataCorte){
+      throw new Error("Preencha data de contratação, valor financiado, nº de parcelas, data da 1ª parcela e data de corte.");
+    }
+
+    const baseFinanciada = valorFinanciado + taxas;
+    let totalJuros, valorParcela;
+    if(modoCalc === "taxa"){
+      const taxaMensal = parseFloat(document.getElementById("L_taxaMensal").value);
+      if(!taxaMensal && taxaMensal!==0) throw new Error("Informe a taxa de juros ao mês.");
+      totalJuros = baseFinanciada * (taxaMensal/100) * nParcelas;
+      valorParcela = (baseFinanciada + totalJuros) / nParcelas;
+    } else {
+      valorParcela = parseFloat(document.getElementById("L_valorParcelaInformado").value);
+      if(!valorParcela) throw new Error("Informe o valor de cada parcela.");
+      totalJuros = valorParcela*nParcelas - baseFinanciada;
+    }
+    const totalDivida = baseFinanciada + totalJuros;
+    const jurosMensal = totalJuros / nParcelas;
+    const amortMensal = valorParcela - jurosMensal;
+
+    // cronograma
+    const parcelas = [];
+    let saldoDevedor = baseFinanciada;
+    for(let i=1;i<=nParcelas;i++){
+      const vencimento = addMonths(dataPrimeiraParcela, i-1);
+      saldoDevedor -= amortMensal;
+      parcelas.push({n:i, vencimento, apropriacao: lastDayOfMonth(vencimento), valorParcela, juros: jurosMensal, amortizacao: amortMensal, saldoDevedor: Math.max(saldoDevedor,0)});
+    }
+    const dataFim = parcelas[parcelas.length-1].vencimento;
+
+    const nCP = parcelas.filter(p=>p.vencimento<=dataCorte).length;
+    const fracaoCP = nCP/nParcelas;
+    const finCPInicial = totalDivida*fracaoCP + entrada;
+    const finLPInicial = totalDivida*(1-fracaoCP);
+    const jurosCPInicial = totalJuros*fracaoCP;
+    const jurosLPInicial = totalJuros*(1-fracaoCP);
+
+    const contas = {
+      ativo: document.getElementById("L_contaAtivo").value.trim(),
+      taxas: document.getElementById("L_contaTaxas").value.trim(),
+      finCP: document.getElementById("L_contaFinCP").value.trim(),
+      finLP: document.getElementById("L_contaFinLP").value.trim(),
+      jurosCP: document.getElementById("L_contaJurosCP").value.trim(),
+      jurosLP: document.getElementById("L_contaJurosLP").value.trim(),
+      jurosDespesa: document.getElementById("L_contaJurosDespesa").value.trim(),
+      banco: document.getElementById("L_contaBanco").value.trim()
+    };
+
+    // lançamentos
+    const lanc = [];
+    lanc.push({data:dataContratacao, debito:contas.ativo, credito:"", valor: entrada+valorFinanciado, complemento:`Contratação de financiamento - ${desc} (D)`});
+    if(taxas>0) lanc.push({data:dataContratacao, debito:contas.taxas, credito:"", valor: taxas, complemento:`Taxas/tarifas financiadas - ${desc} (D)`});
+    lanc.push({data:dataContratacao, debito:"", credito:contas.finCP, valor: finCPInicial, complemento:`Financiamento a pagar CP - ${desc} (C)`});
+    lanc.push({data:dataContratacao, debito:"", credito:contas.finLP, valor: finLPInicial, complemento:`Financiamento a pagar LP - ${desc} (C)`});
+    lanc.push({data:dataContratacao, debito:contas.jurosCP, credito:"", valor: jurosCPInicial, complemento:`(-) Juros a apropriar CP - ${desc} (D)`});
+    lanc.push({data:dataContratacao, debito:contas.jurosLP, credito:"", valor: jurosLPInicial, complemento:`(-) Juros a apropriar LP - ${desc} (D)`});
+
+    if(entrada>0){
+      lanc.push({data:dataContratacao, debito:contas.finCP, credito:contas.banco, valor: entrada, complemento:`Pagamento entrada - ${desc}`});
+    }
+
+    parcelas.forEach(p=>{
+      lanc.push({data:p.vencimento, debito:contas.finCP, credito:contas.banco, valor:p.valorParcela, complemento:`Pagamento parcela ${p.n}/${nParcelas} - ${desc}`});
+      lanc.push({data:p.apropriacao, debito:contas.jurosDespesa, credito:contas.jurosCP, valor:p.juros, complemento:`Apropriação juros parcela ${p.n}/${nParcelas} - ${desc}`});
+    });
+
+    // transferências anuais LP -> CP em cada 31/12 dentro do contrato
+    let ano = dataCorte.getFullYear();
+    while(true){
+      const corte = dec31(ano);
+      if(corte >= dataFim) break;
+      const restantesAposCorte = parcelas.filter(p=>p.vencimento>corte).length;
+      if(restantesAposCorte<=0) break;
+      const qtdTransfer = Math.min(12, restantesAposCorte);
+      const valorFin = valorParcela*qtdTransfer;
+      const valorJuros = jurosMensal*qtdTransfer;
+      lanc.push({data:corte, debito:"", credito:contas.finCP, valor:valorFin, complemento:`Transferência LP→CP - ${desc}`, yearend:true});
+      lanc.push({data:corte, debito:contas.finLP, credito:"", valor:valorFin, complemento:`Transferência LP→CP - ${desc}`, yearend:true});
+      lanc.push({data:corte, debito:contas.jurosCP, credito:"", valor:valorJuros, complemento:`Transferência juros LP→CP - ${desc}`, yearend:true});
+      lanc.push({data:corte, debito:"", credito:contas.jurosLP, valor:valorJuros, complemento:`Transferência juros LP→CP - ${desc}`, yearend:true});
+      ano++;
+    }
+    lanc.sort((a,b)=>a.data-b.data);
+
+    window._linearCalc = {desc, codEmpresa, parcelas, lanc, nParcelas, valorParcela, totalJuros, totalDivida, finCPInicial, finLPInicial, dataFim};
+
+    // resumo
+    document.getElementById("L_summary").innerHTML = `
+      <div class="item"><div class="k">Valor total do contrato</div><div class="v">R$ ${fmtBRL(totalDivida+entrada)}</div></div>
+      <div class="item"><div class="k">Total de juros</div><div class="v">R$ ${fmtBRL(totalJuros)}</div></div>
+      <div class="item"><div class="k">Valor de cada parcela</div><div class="v">R$ ${fmtBRL(valorParcela)}</div></div>
+      <div class="item"><div class="k">Curto prazo (inicial)</div><div class="v">R$ ${fmtBRL(finCPInicial-jurosCPInicial)}</div></div>
+      <div class="item"><div class="k">Longo prazo (inicial)</div><div class="v">R$ ${fmtBRL(finLPInicial-jurosLPInicial)}</div></div>
+      <div class="item"><div class="k">Fim do contrato</div><div class="v">${fmtDateBR(dataFim)}</div></div>
+    `;
+
+    let schedHtml = `<table class="preview"><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Juros</th><th>Amortização</th><th>Saldo devedor</th></tr></thead><tbody>`;
+    parcelas.forEach(p=>{
+      schedHtml += `<tr><td>${p.n}/${nParcelas}</td><td>${fmtDateBR(p.vencimento)}</td><td class="num">${fmtBRL(p.valorParcela)}</td><td class="num">${fmtBRL(p.juros)}</td><td class="num">${fmtBRL(p.amortizacao)}</td><td class="num">${fmtBRL(p.saldoDevedor)}</td></tr>`;
+    });
+    schedHtml += `</tbody></table>`;
+    document.getElementById("L_scheduleTable").innerHTML = schedHtml;
+
+    renderLancTable("L_lancTable", lanc, codEmpresa);
+    document.getElementById("L_resultado").classList.remove("hidden");
+    statusEl.classList.add("hidden");
+  }catch(err){
+    statusEl.textContent = "Erro: " + err.message;
+    statusEl.classList.add("err");
+    document.getElementById("L_resultado").classList.add("hidden");
+  }
+}
+function downloadLinearTxt(){
+  if(!window._linearCalc) return;
+  exportTxt("lanctos_financiamento.txt", window._linearCalc.lanc, window._linearCalc.codEmpresa);
+}
+function downloadLinearXlsx(){
+  if(!window._linearCalc) return;
+  exportXlsxLanc("lancamentos_financiamento.xlsx", window._linearCalc.lanc, window._linearCalc.codEmpresa);
+}
+
+/* =========================================================================
+   MODO ÍNDICE — cálculo
+   ========================================================================= */
+function calcularIndiceUI(){
+  const statusEl = document.getElementById("I_status");
+  statusEl.className = "status-line";
+  try{
+    const desc = document.getElementById("I_desc").value.trim() || "Parcelamento";
+    const codEmpresa = document.getElementById("I_codEmpresa").value.trim();
+    const dataContrato = parseDateInput(document.getElementById("I_dataContrato").value);
+    const entrada = parseFloat(document.getElementById("I_entrada").value)||0;
+    const valorParcela = parseFloat(document.getElementById("I_valorParcela").value);
+    const nParcelas = parseInt(document.getElementById("I_nParcelas").value);
+    const dataPrimeiraParcela = parseDateInput(document.getElementById("I_dataPrimeiraParcela").value);
+    const dataCorte = parseDateInput(document.getElementById("I_dataCorte").value);
+    const indiceNome = document.getElementById("I_indiceNome").value.trim() || "índice";
+    const indiceBase = parseFloat(document.getElementById("I_indiceBase").value);
+
+    if(!dataContrato || !valorParcela || !nParcelas || !dataPrimeiraParcela || !dataCorte || !indiceBase){
+      throw new Error("Preencha data do contrato, valor da parcela, nº de parcelas, data da 1ª parcela, data de corte e o valor do índice na data-base.");
+    }
+
+    const totalNominal = entrada + valorParcela*nParcelas;
+
+    const parcelas = [];
+    for(let i=1;i<=nParcelas;i++){
+      const vencimento = addMonths(dataPrimeiraParcela, i-1);
+      parcelas.push({n:i, vencimento, valorNominal:valorParcela, indice:indiceBase});
+    }
+    const dataFim = parcelas[parcelas.length-1].vencimento;
+    const nCP = parcelas.filter(p=>p.vencimento<=dataCorte).length;
+    const fracaoCP = nCP/nParcelas;
+    const finCPInicial = valorParcela*nParcelas*fracaoCP + entrada;
+    const finLPInicial = valorParcela*nParcelas*(1-fracaoCP);
+
+    const contas = {
+      ativo: document.getElementById("I_contaAtivo").value.trim(),
+      finCP: document.getElementById("I_contaFinCP").value.trim(),
+      finLP: document.getElementById("I_contaFinLP").value.trim(),
+      correcao: document.getElementById("I_contaCorrecao").value.trim(),
+      banco: document.getElementById("I_contaBanco").value.trim()
+    };
+
+    window._indiceCalc = {desc, codEmpresa, dataContrato, entrada, valorParcela, nParcelas, dataFim, indiceNome, indiceBase, parcelas, contas, finCPInicial, finLPInicial, totalNominal, dataCorte};
+
+    document.getElementById("I_summary").innerHTML = `
+      <div class="item"><div class="k">Valor nominal do contrato</div><div class="v">R$ ${fmtBRL(totalNominal)}</div></div>
+      <div class="item"><div class="k">Valor nominal de cada parcela</div><div class="v">R$ ${fmtBRL(valorParcela)}</div></div>
+      <div class="item"><div class="k">Curto prazo (inicial)</div><div class="v">R$ ${fmtBRL(finCPInicial)}</div></div>
+      <div class="item"><div class="k">Longo prazo (inicial)</div><div class="v">R$ ${fmtBRL(finLPInicial)}</div></div>
+      <div class="item"><div class="k">Fim do contrato</div><div class="v">${fmtDateBR(dataFim)}</div></div>
+    `;
+
+    renderIndiceScheduleTable();
+    recalcularIndice();
+    document.getElementById("I_resultado").classList.remove("hidden");
+    statusEl.classList.add("hidden");
+  }catch(err){
+    statusEl.textContent = "Erro: " + err.message;
+    statusEl.classList.add("err");
+    document.getElementById("I_resultado").classList.add("hidden");
+  }
+}
+function renderIndiceScheduleTable(){
+  const c = window._indiceCalc;
+  let html = `<table class="preview"><thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor nominal</th><th>Índice do mês</th><th>Correção</th><th>Valor corrigido</th></tr></thead><tbody>`;
+  c.parcelas.forEach(p=>{
+    html += `<tr>
+      <td>${p.n}/${c.nParcelas}</td>
+      <td>${fmtDateBR(p.vencimento)}</td>
+      <td class="num">${fmtBRL(p.valorNominal)}</td>
+      <td><input class="cell-input" type="number" step="0.000001" value="${p.indice}" data-idx="${p.n}" onchange="onIndiceEdit(this)"></td>
+      <td class="num" id="I_corr_${p.n}"></td>
+      <td class="num" id="I_valCorr_${p.n}"></td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  document.getElementById("I_scheduleTable").innerHTML = html;
+}
+function onIndiceEdit(input){
+  const c = window._indiceCalc;
+  const p = c.parcelas.find(x=>x.n===parseInt(input.dataset.idx));
+  p.indice = parseFloat(input.value) || c.indiceBase;
+  recalcularIndice();
+}
+function recalcularIndice(){
+  const c = window._indiceCalc;
+  const lanc = [];
+  lanc.push({data:c.dataContrato, debito:c.contas.ativo, credito:"", valor: c.totalNominal, complemento:`Contratação de parcelamento - ${c.desc} (D)`});
+  lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finCP, valor: c.finCPInicial, complemento:`Financiamento a pagar CP - ${c.desc} (C)`});
+  lanc.push({data:c.dataContrato, debito:"", credito:c.contas.finLP, valor: c.finLPInicial, complemento:`Financiamento a pagar LP - ${c.desc} (C)`});
+  if(c.entrada>0){
+    lanc.push({data:c.dataContrato, debito:c.contas.finCP, credito:c.contas.banco, valor:c.entrada, complemento:`Pagamento entrada - ${c.desc}`});
+  }
+
+  c.parcelas.forEach(p=>{
+    const correcao = p.valorNominal*(p.indice/c.indiceBase - 1);
+    const valorCorrigido = p.valorNominal + correcao;
+    document.getElementById(`I_corr_${p.n}`).textContent = fmtBRL(correcao);
+    document.getElementById(`I_valCorr_${p.n}`).textContent = fmtBRL(valorCorrigido);
+    if(Math.abs(correcao) > 0.0001){
+      if(correcao>0){
+        lanc.push({data:p.vencimento, debito:c.contas.correcao, credito:"", valor:correcao, complemento:`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (D)`});
+      } else {
+        lanc.push({data:p.vencimento, debito:"", credito:c.contas.correcao, valor:-correcao, complemento:`Correção monetária (${c.indiceNome}) parcela ${p.n}/${c.nParcelas} - ${c.desc} (C)`});
+      }
+    }
+    lanc.push({data:p.vencimento, debito:c.contas.finCP, credito:c.contas.banco, valor:valorCorrigido, complemento:`Pagamento parcela ${p.n}/${c.nParcelas} - ${c.desc}`});
+  });
+
+  // transferências anuais LP -> CP (valores nominais)
+  let ano = c.dataCorte.getFullYear();
+  while(true){
+    const corte = dec31(ano);
+    if(corte >= c.dataFim) break;
+    const restantesAposCorte = c.parcelas.filter(p=>p.vencimento>corte).length;
+    if(restantesAposCorte<=0) break;
+    const qtdTransfer = Math.min(12, restantesAposCorte);
+    const valorFin = c.valorParcela*qtdTransfer;
+    lanc.push({data:corte, debito:"", credito:c.contas.finCP, valor:valorFin, complemento:`Transferência LP→CP - ${c.desc}`, yearend:true});
+    lanc.push({data:corte, debito:c.contas.finLP, credito:"", valor:valorFin, complemento:`Transferência LP→CP - ${c.desc}`, yearend:true});
+    ano++;
+  }
+  lanc.sort((a,b)=>a.data-b.data);
+
+  c.lanc = lanc;
+  renderLancTable("I_lancTable", lanc, c.codEmpresa);
+}
+function downloadIndiceTxt(){
+  if(!window._indiceCalc) return;
+  exportTxt("lanctos_parcelamento.txt", window._indiceCalc.lanc, window._indiceCalc.codEmpresa);
+}
+function downloadIndiceXlsx(){
+  if(!window._indiceCalc) return;
+  exportXlsxLanc("lancamentos_parcelamento.xlsx", window._indiceCalc.lanc, window._indiceCalc.codEmpresa);
+}
+</script>
+</body>
+</html>
